@@ -1,9 +1,13 @@
 <?php
-/** @var array|null  $result     - verification result */
+declare(strict_types=1);
+
+/** @var array|null  $result     - database verification result */
 /** @var string|null $licenseKey - form input restore */
 /** @var string|null $companyId  - form input restore */
+/** @var array|null  $keyData    - offline-decoded key payload */
 
 use LicenseGenerator\LicenseManager;
+use LicenseGenerator\LicenseDecoder;
 ?>
 
 <h4 class="fw-bold mb-4"><i class="bi bi-patch-check me-2 text-primary"></i>Weryfikacja klucza licencji</h4>
@@ -16,7 +20,7 @@ use LicenseGenerator\LicenseManager;
                 <div class="col-md-6">
                     <label for="license_key" class="form-label fw-semibold">Klucz licencji</label>
                     <input type="text" id="license_key" name="license_key" class="form-control license-key"
-                           placeholder="TACHO-XXXXXXXX-XXXXXXXX-XXXXXXXX-XXXXXXXX"
+                           placeholder="TACHO-XXXX-XXXX-XXXX-XXXX"
                            value="<?= htmlspecialchars($licenseKey ?? '') ?>"
                            required>
                 </div>
@@ -37,8 +41,9 @@ use LicenseGenerator\LicenseManager;
     </div>
 </div>
 
-<!-- Verification result -->
 <?php if (isset($result)): ?>
+
+    <!-- ── Database verification result ──────────────────────────────── -->
     <?php if ($result['valid']): ?>
         <div class="alert alert-success d-flex align-items-start gap-3">
             <i class="bi bi-check-circle-fill fs-2 flex-shrink-0 mt-1"></i>
@@ -61,7 +66,7 @@ use LicenseGenerator\LicenseManager;
         <?php $lic = $result['license']; $modules = json_decode($lic['modules'], true) ?: []; ?>
         <div class="card border-0 shadow-sm mt-3">
             <div class="card-header bg-white fw-semibold">
-                <i class="bi bi-info-circle me-2"></i>Szczegóły licencji
+                <i class="bi bi-database me-2"></i>Szczegóły licencji (z bazy danych)
             </div>
             <div class="card-body">
                 <div class="row g-3">
@@ -109,4 +114,61 @@ use LicenseGenerator\LicenseManager;
             </div>
         </div>
     <?php endif; ?>
+
+<?php endif; ?>
+
+<?php if (!empty($keyData)): ?>
+    <!-- ── Offline key decode result ──────────────────────────────────── -->
+    <div class="card border-0 shadow-sm mt-3">
+        <div class="card-header bg-white fw-semibold d-flex align-items-center gap-2">
+            <i class="bi bi-key text-success"></i>
+            Dane zakodowane w kluczu
+            <span class="badge bg-success ms-1">weryfikacja offline</span>
+        </div>
+        <div class="card-body">
+            <p class="text-muted small mb-3">
+                Poniższe dane zostały odczytane bezpośrednio z klucza licencji (bez dostępu do bazy danych)
+                przy użyciu skonfigurowanego sekretu <code>LICENSE_SECRET</code>.
+                Integralność klucza potwierdza wbudowany skrót HMAC-SHA256.
+            </p>
+            <div class="row g-3">
+                <div class="col-sm-6 col-lg-3">
+                    <div class="text-muted small">Ważność (w kluczu)</div>
+                    <div><?= htmlspecialchars($keyData['valid_from']) ?> → <?= htmlspecialchars($keyData['valid_to']) ?></div>
+                    <?php
+                        $today  = date('Y-m-d');
+                        $active = $keyData['valid_from'] <= $today && $today <= $keyData['valid_to'];
+                    ?>
+                    <span class="badge <?= $active ? 'bg-success' : 'bg-danger' ?> mt-1">
+                        <?= $active ? 'Aktywna' : 'Nieaktywna / wygasła' ?>
+                    </span>
+                </div>
+                <div class="col-sm-6 col-lg-3">
+                    <div class="text-muted small">Limity (w kluczu)</div>
+                    <div>Operatorzy: <strong><?= (int)$keyData['max_operators'] ?></strong></div>
+                    <div>Kierowcy: <strong><?= (int)$keyData['max_drivers'] ?></strong></div>
+                </div>
+                <div class="col-sm-6 col-lg-3">
+                    <div class="text-muted small">Moduły (w kluczu)</div>
+                    <div>
+                        <?php foreach ($keyData['modules'] as $mod): ?>
+                            <span class="badge bg-primary me-1">
+                                <?= htmlspecialchars(LicenseManager::MODULES[$mod] ?? $mod) ?>
+                            </span>
+                        <?php endforeach; ?>
+                    </div>
+                </div>
+                <div class="col-sm-6 col-lg-3">
+                    <div class="text-muted small">Integralność HMAC</div>
+                    <span class="badge bg-success"><i class="bi bi-shield-check me-1"></i>Zweryfikowana</span>
+                </div>
+            </div>
+        </div>
+    </div>
+<?php elseif (isset($result) && empty($keyData)): ?>
+    <div class="alert alert-warning mt-3">
+        <i class="bi bi-exclamation-triangle me-2"></i>
+        Nie można odczytać danych z klucza przy użyciu skonfigurowanego sekretu
+        <code>LICENSE_SECRET</code>.  Sprawdź, czy klucz jest poprawny i czy sekret jest właściwy.
+    </div>
 <?php endif; ?>

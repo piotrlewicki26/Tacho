@@ -181,6 +181,10 @@ if ($path === '/generate' && $method === 'POST') {
 
     if ($validTo === '' || $validTo <= $validFrom) {
         $errors[] = 'Data końca ważności musi być późniejsza niż data początku.';
+    } elseif ($validFrom < '2020-01-01') {
+        $errors[] = 'Data początku ważności musi być nie wcześniejsza niż 2020-01-01 (wymaganie formatu klucza).';
+    } elseif ($validTo > '2064-11-08') {
+        $errors[] = 'Data końca ważności nie może przekraczać 2064-11-08 (limit formatu klucza).';
     }
 
     if (strlen($licenseSecret) < 32) {
@@ -225,7 +229,10 @@ if ($path === '/verify' && $method === 'POST') {
     $licenseKey = trim((string)($_POST['license_key'] ?? ''));
     $companyId  = trim((string)($_POST['company_id']  ?? ''));
     $result     = $licenseManager->verify($licenseKey, $companyId);
-    renderView('verify', compact('result', 'licenseKey', 'companyId'));
+    // Attempt offline decode using the configured secret so the view can show
+    // key-embedded data independently of the database.
+    $keyData = $licenseManager->decodeKey($licenseKey);
+    renderView('verify', compact('result', 'licenseKey', 'companyId', 'keyData'));
 }
 
 // ── Toggle active state ────────────────────────────────────────────────────

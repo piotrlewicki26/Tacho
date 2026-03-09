@@ -9,22 +9,28 @@ use PDO;
  * License generation, validation and management.
  *
  * License key format : TACHO-XXXX-XXXX-XXXX-XXXX
- *                      (4 groups of 4 uppercase alphanumeric characters)
+ *                      (16 uppercase alphanumeric base-36 characters ≈ 82.7 bits)
  *
- *   Group 1 – base-36 encoding of the module bitmask (4 chars, left-padded with '0').
- *             Allows decoding which modules are licensed directly from the key.
- *   Groups 2-4 – first 12 hex chars of HMAC-SHA256(secret, company_id|valid_to|group1|nonce),
- *             binding the key to the given secret so only the secret holder
- *             can generate valid keys.
+ * All license metadata is encoded directly inside the key body by
+ * LicenseDecoder::encode():
+ *   bits  0-4  : module bitmask
+ *   bits  5-18 : valid_from (days since 2020-01-01)
+ *   bits 19-32 : valid_to   (days since 2020-01-01)
+ *   bits 33-46 : max_operators
+ *   bits 47-63 : max_drivers
+ *   bits 64-81 : 18-bit HMAC-SHA256 checksum (bound to LICENSE_SECRET)
  *
- * Signature hash      : HMAC-SHA256(
- *                           company_id|license_key|modules|max_operators|max_drivers|valid_to|hardware_id,
- *                           LICENSE_SECRET
- *                       )
+ * This means the key is self-contained: any system that holds the matching
+ * LICENSE_SECRET can validate the license and read its parameters offline,
+ * without a database.  See LicenseDecoder for the portable decoder.
+ *
+ * The database additionally stores a full HMAC-SHA256 signature over:
+ *   company_id|license_key|modules|max_operators|max_drivers|valid_from|valid_to|hardware_id
+ * This provides a second integrity layer for the generator's own records.
  */
 class LicenseManager
 {
-    /** Available module identifiers */
+    /** Available module identifiers — human-readable labels. */
     public const MODULES = [
         'all'         => 'Wszystkie moduły',
         'analysis'    => 'Analiza czasu pracy',
@@ -32,15 +38,6 @@ class LicenseManager
         'violations'  => 'Naruszenia przepisów',
         'delegation'  => 'Delegacje',
         'vacation'    => 'Urlopy',
-    ];
-
-    /** Bitmask values for individual module identifiers. */
-    private const MODULE_BITS = [
-        'analysis'   => 1,
-        'reports'    => 2,
-        'violations' => 4,
-        'delegation' => 8,
-        'vacation'   => 16,
     ];
 
     public function __construct(private Database $db) {}
@@ -72,11 +69,13 @@ class LicenseManager
         $this->assertSecret($secret);
 
         $modules    = $this->normaliseModules($data['modules'] ?? ['all']);
-        // Derive the key from the secret so only the secret holder can generate valid keys.
-        $licenseKey = $this->deriveKey(
-            $data['company_id'],
+        // Encode all metadata + HMAC checksum into the key body.
+        $licenseKey = LicenseDecoder::encode(
             $modules,
+            $data['valid_from'],
             $data['valid_to'],
+            (int)$data['max_operators'],
+            (int)$data['max_drivers'],
             $secret
         );
         $hash = $this->computeHash(
@@ -85,6 +84,7 @@ class LicenseManager
             implode(',', $modules),
             (int)$data['max_operators'],
             (int)$data['max_drivers'],
+            $data['valid_from'],
             $data['valid_to'],
             $data['hardware_id'] ?? '',
             $secret
@@ -128,7 +128,12 @@ class LicenseManager
     // -----------------------------------------------------------------------
 
     /**
-     * Verify an existing license key.
+     * Verify an existing license key using the database record as the source of truth.
+     *
+     * Three-layer check:
+     *   1. DB record exists and is active / not expired.
+     *   2. The key's embedded HMAC (offline layer) matches the stored secret.
+     *   3. The DB-stored HMAC-SHA256 signature over the full record fields matches.
      *
      * Returns an array with at least the key 'valid' (bool) and 'message' (string).
      */
@@ -163,16 +168,53 @@ class LicenseManager
             return ['valid' => false, 'message' => 'Licencja wygasła (' . $license['valid_to'] . ').', 'license' => $license];
         }
 
-        // Use the secret that was stored with this license; fall back to the
-        // configured LICENSE_SECRET for licenses created before this feature.
+        // Use the secret stored with this license; fall back to the configured
+        // LICENSE_SECRET for licenses created before per-license secrets existed.
         $secret = ($license['used_secret'] ?? '') ?: LICENSE_SECRET;
 
         if ($secret === '') {
             return ['valid' => false, 'message' => 'Brak skonfigurowanego sekretu (LICENSE_SECRET) – nie można zweryfikować podpisu.', 'license' => $license];
         }
 
-        $modules    = json_decode($license['modules'], true);
-        $modulesStr = implode(',', $this->normaliseModules($modules));
+        // ── Layer 2: offline key HMAC ───────────────────────────────────────
+        // Decode the key body and cross-check its embedded metadata against the
+        // DB record.  This catches any tampering in either the key or the DB row.
+        $keyData = LicenseDecoder::decode($licenseKey, $secret);
+        if ($keyData !== false) {
+            $rawModules = json_decode($license['modules'], true);
+            if (!is_array($rawModules)) {
+                return [
+                    'valid'   => false,
+                    'message' => 'Nieprawidłowe dane JSON w polu modules rekordu bazy danych.',
+                    'license' => $license,
+                ];
+            }
+            $dbModules = $this->normaliseModules($rawModules);
+            if (
+                $keyData['valid_from']    !== $license['valid_from']          ||
+                $keyData['valid_to']      !== $license['valid_to']            ||
+                $keyData['max_operators'] !== (int)$license['max_operators']  ||
+                $keyData['max_drivers']   !== (int)$license['max_drivers']    ||
+                $keyData['modules']       !== $dbModules
+            ) {
+                return [
+                    'valid'   => false,
+                    'message' => 'Dane zakodowane w kluczu nie zgadzają się z rekordem bazy danych (możliwa manipulacja).',
+                    'license' => $license,
+                ];
+            }
+        }
+
+        // ── Layer 3: DB-stored HMAC-SHA256 ─────────────────────────────────
+        $rawModules = json_decode($license['modules'], true);
+        if (!is_array($rawModules)) {
+            return [
+                'valid'   => false,
+                'message' => 'Nieprawidłowe dane JSON w polu modules rekordu bazy danych.',
+                'license' => $license,
+            ];
+        }
+        $modulesStr = implode(',', $this->normaliseModules($rawModules));
 
         $expected = $this->computeHash(
             $license['company_id'],
@@ -180,6 +222,7 @@ class LicenseManager
             $modulesStr,
             (int)$license['max_operators'],
             (int)$license['max_drivers'],
+            $license['valid_from'],
             $license['valid_to'],
             $license['hardware_id'],
             $secret
@@ -264,8 +307,9 @@ class LicenseManager
     // -----------------------------------------------------------------------
 
     /**
-     * Compute the HMAC-SHA256 license hash.
-     * The message is: company_id|key|modules|max_ops|max_drivers|valid_to|hardware_id
+     * Compute the HMAC-SHA256 signature stored in the database record.
+     *
+     * Message: company_id|license_key|modules|max_operators|max_drivers|valid_from|valid_to|hardware_id
      *
      * @param string $secret  HMAC key. Defaults to the LICENSE_SECRET constant.
      */
@@ -275,6 +319,7 @@ class LicenseManager
         string $modulesStr,
         int    $maxOperators,
         int    $maxDrivers,
+        string $validFrom,
         string $validTo,
         string $hardwareId,
         string $secret = ''
@@ -286,6 +331,7 @@ class LicenseManager
             $modulesStr,
             $maxOperators,
             $maxDrivers,
+            $validFrom,
             $validTo,
             $hardwareId,
         ]);
@@ -308,99 +354,30 @@ class LicenseManager
         return $modules ?: ['all'];
     }
 
+    /**
+     * Offline-decode a license key without a database lookup.
+     *
+     * Returns the decoded metadata array (same shape as LicenseDecoder::decode()),
+     * or false when the key format is invalid or the HMAC does not match the secret.
+     *
+     * @param string $secret  Defaults to the configured LICENSE_SECRET.
+     * @return array{
+     *     modules:       string[],
+     *     valid_from:    string,
+     *     valid_to:      string,
+     *     max_operators: int,
+     *     max_drivers:   int,
+     * }|false
+     */
+    public function decodeKey(string $licenseKey, string $secret = ''): array|false
+    {
+        $secret = ($secret === '') ? LICENSE_SECRET : $secret;
+        return LicenseDecoder::decode($licenseKey, $secret);
+    }
+
     // -----------------------------------------------------------------------
     // Private helpers
     // -----------------------------------------------------------------------
-
-    /**
-     * Derive a TACHO-XXXX-XXXX-XXXX-XXXX license key that is bound to the
-     * given secret, company, validity date, and active modules.
-     *
-     * Group 1 – base-36 encoding of the module bitmask (4 uppercase chars).
-     * Groups 2-4 – first 12 hex chars of HMAC-SHA256(secret, data + random nonce),
-     *              uppercased.  A fresh random nonce ensures each call produces a
-     *              unique key even when all other inputs are identical.
-     */
-    private function deriveKey(
-        string $companyId,
-        array  $modules,
-        string $validTo,
-        string $secret
-    ): string {
-        // Encode module bitmask as 4-char base-36 uppercase group.
-        $bitmask = $this->modulesBitmask($modules);
-        $group1  = str_pad(
-            strtoupper(base_convert((string)$bitmask, 10, 36)),
-            4,
-            '0',
-            STR_PAD_LEFT
-        );
-
-        // Random nonce guarantees a unique key on each call.
-        $nonce = bin2hex(random_bytes(4));
-        $hmac  = hash_hmac('sha256', "{$companyId}|{$validTo}|{$group1}|{$nonce}", $secret);
-
-        return sprintf(
-            'TACHO-%s-%s-%s-%s',
-            $group1,
-            strtoupper(substr($hmac, 0, 4)),
-            strtoupper(substr($hmac, 4, 4)),
-            strtoupper(substr($hmac, 8, 4))
-        );
-    }
-
-    /**
-     * Compute a bitmask integer for a normalised list of module keys.
-     * 'all' is treated as every individual module being active.
-     */
-    private function modulesBitmask(array $modules): int
-    {
-        if (in_array('all', $modules, true)) {
-            return array_sum(self::MODULE_BITS);  // all bits set
-        }
-        $bits = 0;
-        foreach ($modules as $mod) {
-            $bits |= (self::MODULE_BITS[$mod] ?? 0);
-        }
-        return $bits;
-    }
-
-    /**
-     * Decode a bitmask integer back to an array of module keys.
-     * Returns ['all'] when every individual module bit is set.
-     */
-    public function bitmaskToModules(int $bitmask): array
-    {
-        $fullMask = array_sum(self::MODULE_BITS);
-        if ($bitmask === $fullMask) {
-            return ['all'];
-        }
-        $mods = [];
-        foreach (self::MODULE_BITS as $mod => $bit) {
-            if ($bitmask & $bit) {
-                $mods[] = $mod;
-            }
-        }
-        return $mods;
-    }
-
-    /**
-     * Decode the module bitmask that is encoded in the first group of a
-     * TACHO-XXXX-XXXX-XXXX-XXXX license key.
-     *
-     * Returns an empty array when the key has an unexpected format.
-     *
-     * @return string[]
-     */
-    public function decodeModulesFromKey(string $licenseKey): array
-    {
-        // Expected format: TACHO-XXXX-XXXX-XXXX-XXXX
-        if (!preg_match('/^TACHO-([A-Z0-9]{4})-[A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{4}$/', strtoupper($licenseKey), $m)) {
-            return [];
-        }
-        $bitmask = (int)base_convert(strtolower($m[1]), 36, 10);
-        return $this->bitmaskToModules($bitmask);
-    }
 
     /** Throw when no secret is configured or provided. */
     private function assertSecret(string $secret): void
