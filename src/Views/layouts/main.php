@@ -220,5 +220,17 @@ $userInitial = strtoupper(substr($user['name'] ?? 'U', 0, 1));
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <script src="/assets/js/app.js"></script>
+<script>
+// Flush any chart configurations queued by page content (runs after Chart.js is loaded)
+(window.__chartQueue || []).forEach(function (entry) {
+  var ctx = document.getElementById(entry.id);
+  if (ctx) {
+    new Chart(ctx, entry.config);
+  } else if (typeof console !== 'undefined') {
+    console.warn('TachoSystem: chart canvas not found:', entry.id);
+  }
+});
+window.__chartQueue = [];
+</script>
 </body>
 </html>

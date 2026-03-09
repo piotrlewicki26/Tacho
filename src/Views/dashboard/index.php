@@ -143,10 +143,10 @@
 </div>
 
 <script>
-(function() {
-  const ctx = document.getElementById('activityChart');
-  if (!ctx) return;
-  new Chart(ctx, {
+// Queue the chart config – actual init runs after Chart.js loads at end of layout
+(window.__chartQueue = window.__chartQueue || []).push({
+  id: 'activityChart',
+  config: {
     type: 'bar',
     data: {
       labels: <?= json_encode($chartData['labels']) ?>,
@@ -164,6 +164,6 @@
         y: { stacked: true, ticks: { color: '#9ca3af' }, grid: { color: '#2d3250' } }
       }
     }
-  });
-})();
+  }
+});
 </script>
