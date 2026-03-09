@@ -7,11 +7,61 @@
  * @var array      $vehicles
  * @var array      $chartData
  * @var array|null $licenseInfo
+ * @var array      $allCompanies           Available for superadmin; empty for regular users
+ * @var int|null   $viewedCompanyId        Currently viewed company ID (superadmin only)
+ * @var array      $companiesWithLicense   Map of company_id => true for companies with active license
  */
+
+$isSuperAdmin = \Core\Auth::isSuperAdmin();
+$viewedCompany = null;
+if ($isSuperAdmin && $viewedCompanyId) {
+    foreach ($allCompanies as $c) {
+        if ((int)$c['id'] === (int)$viewedCompanyId) { $viewedCompany = $c; break; }
+    }
+}
 ?>
+
+<?php if ($isSuperAdmin): ?>
+<!-- Superadmin company selector ─────────────────────────────────────────── -->
+<div class="card border-0 mb-4" style="background:#1a1d27">
+  <div class="card-body py-3">
+    <form method="POST" action="/admin/switch-company" class="d-flex flex-wrap align-items-center gap-3">
+      <input type="hidden" name="_token" value="<?= \Core\Auth::csrfToken() ?>">
+      <div class="d-flex align-items-center gap-2">
+        <i class="bi bi-building-fill text-primary"></i>
+        <span class="fw-semibold small text-muted text-uppercase" style="letter-spacing:.05em">Widok firmy</span>
+      </div>
+      <select name="company_id" class="form-select form-select-sm" style="max-width:300px"
+              onchange="this.form.submit()">
+        <option value="0"<?= !$viewedCompanyId ? ' selected' : '' ?>>— Wszystkie firmy (widok globalny) —</option>
+        <?php foreach ($allCompanies as $co): ?>
+        <option value="<?= (int)$co['id'] ?>"<?= (int)$co['id'] === (int)$viewedCompanyId ? ' selected' : '' ?>>
+          <?= htmlspecialchars($co['name']) ?><?= empty($companiesWithLicense[(int)$co['id']]) ? ' ⚠ brak licencji' : '' ?>
+        </option>
+        <?php endforeach; ?>
+      </select>
+      <?php if ($viewedCompany): ?>
+      <span class="badge bg-primary-subtle text-primary border border-primary-subtle">
+        <i class="bi bi-eye me-1"></i>Przeglądasz: <?= htmlspecialchars($viewedCompany['name']) ?>
+      </span>
+      <?php else: ?>
+      <span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle">
+        <i class="bi bi-globe me-1"></i>Widok globalny
+      </span>
+      <?php endif; ?>
+    </form>
+  </div>
+</div>
+<?php endif; ?>
+
 <div class="d-flex justify-content-between align-items-center mb-4">
   <div>
-    <h4 class="fw-bold mb-0">Dashboard</h4>
+    <h4 class="fw-bold mb-0">
+      Dashboard
+      <?php if ($viewedCompany): ?>
+      <span class="fs-6 fw-normal text-muted ms-2">— <?= htmlspecialchars($viewedCompany['name']) ?></span>
+      <?php endif; ?>
+    </h4>
     <p class="text-muted mb-0 small"><?= date('l, d F Y') ?></p>
   </div>
   <?php if ($licenseInfo): ?>

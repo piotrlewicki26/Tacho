@@ -6,6 +6,7 @@ use Core\Auth;
 use Core\Database;
 use Core\License;
 use Models\Activity;
+use Models\Company;
 use Models\Driver;
 use Models\Vehicle;
 
@@ -14,7 +15,26 @@ class DashboardController
     public function index(array $params): void
     {
         Auth::requireAuth();
-        $companyId = Auth::companyId();
+
+        // For superadmin: use the company they have selected to "view as";
+        // for normal users: their own company_id.
+        $companyId = Auth::effectiveCompanyId();
+
+        // List of all companies (for the superadmin company-selector widget).
+        // Also pre-fetch company IDs that have an active license (avoids N+1 in view).
+        $allCompanies          = [];
+        $companiesWithLicense  = [];
+        $viewedCompanyId       = Auth::viewedCompanyId();
+        if (Auth::isSuperAdmin()) {
+            $allCompanies = (new Company())->all();
+            $rows = Database::fetchAll(
+                'SELECT DISTINCT company_id FROM licenses
+                 WHERE is_active=1 AND valid_from <= CURDATE() AND valid_to >= CURDATE()'
+            );
+            foreach ($rows as $r) {
+                $companiesWithLicense[(int)$r['company_id']] = true;
+            }
+        }
 
         // License limits for display
         $licenseInfo = null;
@@ -53,7 +73,7 @@ class DashboardController
                 ['c' => $companyId]
             );
         } else {
-            // Superadmin – show totals across all companies
+            // Superadmin with no company selected – show totals across all companies
             $stats['drivers']    = (int) Database::fetchColumn('SELECT COUNT(*) FROM drivers WHERE is_active=1');
             $stats['vehicles']   = (int) Database::fetchColumn('SELECT COUNT(*) FROM vehicles WHERE is_active=1');
             $stats['files']      = (int) Database::fetchColumn('SELECT COUNT(*) FROM tacho_files');
@@ -93,7 +113,10 @@ class DashboardController
 
         $pageTitle = 'Dashboard';
         $flash     = Auth::getFlash();
-        $content   = $this->render('dashboard/index', compact('stats','recentViolations','recentFiles','drivers','vehicles','chartData','licenseInfo'));
+        $content   = $this->render('dashboard/index', compact(
+            'stats', 'recentViolations', 'recentFiles', 'drivers', 'vehicles',
+            'chartData', 'licenseInfo', 'allCompanies', 'viewedCompanyId', 'companiesWithLicense'
+        ));
         require __DIR__ . '/../Views/layouts/main.php';
     }
 

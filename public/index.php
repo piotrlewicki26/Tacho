@@ -134,6 +134,19 @@ $router->get('/analysis/{id}/weekly', 'AnalysisController@weekly', ['license']);
 $router->get('/reports/vacation',   'ReportController@vacation',   ['license']);
 $router->get('/reports/delegation', 'ReportController@delegation', ['license']);
 
+// Superadmin: switch viewed company (sets/clears the dashboard company context)
+$router->post('/admin/switch-company', static function (array $p) {
+    Core\Auth::requireRole('superadmin');
+    if (!Core\Auth::validateCsrf()) { header('Location: /'); exit; }
+    $id = (int)($_POST['company_id'] ?? 0);
+    if ($id > 0) {
+        Core\Auth::setViewedCompany($id);
+    } else {
+        Core\Auth::clearViewedCompany();
+    }
+    header('Location: /'); exit;
+}, ['auth']);
+
 // Companies (superadmin)
 $router->get('/companies',               'CompanyController@index',  ['auth']);
 $router->get('/companies/create',        'CompanyController@create', ['auth']);

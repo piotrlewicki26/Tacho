@@ -89,6 +89,52 @@ class Auth
         return self::role() === 'superadmin';
     }
 
+    // ── Superadmin company context (view-as) ───────────────────────────────
+
+    /**
+     * For superadmin: set the company they are currently viewing as.
+     * Has no effect for non-superadmin users.
+     */
+    public static function setViewedCompany(int $companyId): void
+    {
+        if (self::isSuperAdmin()) {
+            $_SESSION['tacho_viewed_company'] = $companyId;
+        }
+    }
+
+    /** Clear the superadmin's viewed-company context (back to global view). */
+    public static function clearViewedCompany(): void
+    {
+        unset($_SESSION['tacho_viewed_company']);
+    }
+
+    /**
+     * Return the company ID that a superadmin is currently "viewing as",
+     * or null if no company is selected (global view).
+     * Always returns null for non-superadmin (they use companyId() instead).
+     */
+    public static function viewedCompanyId(): ?int
+    {
+        if (!self::isSuperAdmin()) return null;
+        return isset($_SESSION['tacho_viewed_company'])
+            ? (int) $_SESSION['tacho_viewed_company']
+            : null;
+    }
+
+    /**
+     * Effective company ID for scoping data queries:
+     * – Superadmin with a company selected → that company
+     * – Superadmin with no company selected → null (global totals)
+     * – Normal user → their own company_id
+     */
+    public static function effectiveCompanyId(): ?int
+    {
+        if (self::isSuperAdmin()) {
+            return self::viewedCompanyId();
+        }
+        return self::companyId();
+    }
+
     // ── Guards ─────────────────────────────────────────────────────────────
 
     public static function requireAuth(): void

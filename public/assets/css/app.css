@@ -367,6 +367,13 @@ body {
   text-overflow: ellipsis;
 }
 .navbar-company-badge i { opacity: .6; flex-shrink: 0; }
+/* Superadmin "viewing as" highlight */
+.navbar-company-badge--viewed {
+  color: var(--bs-primary, #0d6efd);
+  border-color: rgba(13,110,253,.4);
+  background: rgba(13,110,253,.08);
+}
+.navbar-company-badge--viewed i { opacity: 1; }
 
 /* Date pill */
 .navbar-date {

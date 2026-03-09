@@ -28,11 +28,17 @@ $anyActive   = function(array $paths) use ($matchesPath): bool {
     return false;
 };
 
-$companyName = '';
-if ($companyId) {
-    $co = \Core\Database::fetchOne('SELECT name FROM companies WHERE id=:id', ['id' => $companyId]);
+// Determine the display company name in the navbar:
+// – For regular users: their own company
+// – For superadmin: the company they are currently "viewing as" (if any)
+$companyName      = '';
+$viewedCid        = \Core\Auth::isSuperAdmin() ? \Core\Auth::viewedCompanyId() : null;
+$navbarCompanyId  = $viewedCid ?? $companyId;
+if ($navbarCompanyId) {
+    $co = \Core\Database::fetchOne('SELECT name FROM companies WHERE id=:id', ['id' => $navbarCompanyId]);
     if ($co) $companyName = $co['name'];
 }
+$navbarCompanyIsViewed = ($viewedCid !== null);   // superadmin viewing a specific company
 
 $roleLabels  = ['superadmin' => 'Super Admin', 'admin' => 'Administrator', 'operator' => 'Operator'];
 $roleLabel   = $roleLabels[$user['role'] ?? ''] ?? ($user['role'] ?? '');
@@ -42,6 +48,7 @@ $userInitial = strtoupper(substr($user['name'] ?? 'U', 0, 1));
 <!-- ═══════════════════ TOP NAVBAR ═══════════════════ -->
 <header class="top-navbar" id="topNavbar">
   <div class="navbar-inner">
+
 
     <!-- Brand -->
     <a href="/" class="navbar-brand-link">
@@ -152,8 +159,9 @@ $userInitial = strtoupper(substr($user['name'] ?? 'U', 0, 1));
     <div class="navbar-right">
 
       <?php if ($companyName): ?>
-      <div class="navbar-company-badge d-none d-xl-flex">
-        <i class="bi bi-building-fill"></i>
+      <div class="navbar-company-badge d-none d-xl-flex <?= $navbarCompanyIsViewed ? 'navbar-company-badge--viewed' : '' ?>"
+           title="<?= $navbarCompanyIsViewed ? 'Podgląd firmy: ' . htmlspecialchars($companyName) : '' ?>">
+        <i class="bi bi-<?= $navbarCompanyIsViewed ? 'eye-fill' : 'building-fill' ?>"></i>
         <span><?= htmlspecialchars($companyName) ?></span>
       </div>
       <?php endif; ?>
