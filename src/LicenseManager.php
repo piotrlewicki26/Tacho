@@ -8,10 +8,16 @@ use PDO;
 /**
  * License generation, validation and management.
  *
- * License key format : TACHO-XXXXXXXX-XXXXXXXX-XXXXXXXX-XXXXXXXX
- *                      (4 groups of 8 uppercase hex characters)
+ * License key format : TACHO-XXXX-XXXX-XXXX-XXXX
+ *                      (4 groups of 4 uppercase alphanumeric characters)
  *
- * Hash algorithm      : HMAC-SHA256(
+ *   Group 1 – base-36 encoding of the module bitmask (4 chars, left-padded with '0').
+ *             Allows decoding which modules are licensed directly from the key.
+ *   Groups 2-4 – first 12 hex chars of HMAC-SHA256(secret, company_id|valid_to|group1|nonce),
+ *             binding the key to the given secret so only the secret holder
+ *             can generate valid keys.
+ *
+ * Signature hash      : HMAC-SHA256(
  *                           company_id|license_key|modules|max_operators|max_drivers|valid_to|hardware_id,
  *                           LICENSE_SECRET
  *                       )
@@ -26,6 +32,15 @@ class LicenseManager
         'violations'  => 'Naruszenia przepisów',
         'delegation'  => 'Delegacje',
         'vacation'    => 'Urlopy',
+    ];
+
+    /** Bitmask values for individual module identifiers. */
+    private const MODULE_BITS = [
+        'analysis'   => 1,
+        'reports'    => 2,
+        'violations' => 4,
+        'delegation' => 8,
+        'vacation'   => 16,
     ];
 
     public function __construct(private Database $db) {}
@@ -56,9 +71,15 @@ class LicenseManager
         $secret = ($secret === '') ? LICENSE_SECRET : $secret;
         $this->assertSecret($secret);
 
-        $licenseKey = $this->randomKey();
         $modules    = $this->normaliseModules($data['modules'] ?? ['all']);
-        $hash       = $this->computeHash(
+        // Derive the key from the secret so only the secret holder can generate valid keys.
+        $licenseKey = $this->deriveKey(
+            $data['company_id'],
+            $modules,
+            $data['valid_to'],
+            $secret
+        );
+        $hash = $this->computeHash(
             $data['company_id'],
             $licenseKey,
             implode(',', $modules),
@@ -291,16 +312,94 @@ class LicenseManager
     // Private helpers
     // -----------------------------------------------------------------------
 
-    /** Generate a random TACHO-XXXXXXXX-XXXXXXXX-XXXXXXXX-XXXXXXXX key. */
-    private function randomKey(): string
-    {
+    /**
+     * Derive a TACHO-XXXX-XXXX-XXXX-XXXX license key that is bound to the
+     * given secret, company, validity date, and active modules.
+     *
+     * Group 1 – base-36 encoding of the module bitmask (4 uppercase chars).
+     * Groups 2-4 – first 12 hex chars of HMAC-SHA256(secret, data + random nonce),
+     *              uppercased.  A fresh random nonce ensures each call produces a
+     *              unique key even when all other inputs are identical.
+     */
+    private function deriveKey(
+        string $companyId,
+        array  $modules,
+        string $validTo,
+        string $secret
+    ): string {
+        // Encode module bitmask as 4-char base-36 uppercase group.
+        $bitmask = $this->modulesBitmask($modules);
+        $group1  = str_pad(
+            strtoupper(base_convert((string)$bitmask, 10, 36)),
+            4,
+            '0',
+            STR_PAD_LEFT
+        );
+
+        // Random nonce guarantees a unique key on each call.
+        $nonce = bin2hex(random_bytes(4));
+        $hmac  = hash_hmac('sha256', "{$companyId}|{$validTo}|{$group1}|{$nonce}", $secret);
+
         return sprintf(
             'TACHO-%s-%s-%s-%s',
-            strtoupper(bin2hex(random_bytes(4))),
-            strtoupper(bin2hex(random_bytes(4))),
-            strtoupper(bin2hex(random_bytes(4))),
-            strtoupper(bin2hex(random_bytes(4)))
+            $group1,
+            strtoupper(substr($hmac, 0, 4)),
+            strtoupper(substr($hmac, 4, 4)),
+            strtoupper(substr($hmac, 8, 4))
         );
+    }
+
+    /**
+     * Compute a bitmask integer for a normalised list of module keys.
+     * 'all' is treated as every individual module being active.
+     */
+    private function modulesBitmask(array $modules): int
+    {
+        if (in_array('all', $modules, true)) {
+            return array_sum(self::MODULE_BITS);  // all bits set
+        }
+        $bits = 0;
+        foreach ($modules as $mod) {
+            $bits |= (self::MODULE_BITS[$mod] ?? 0);
+        }
+        return $bits;
+    }
+
+    /**
+     * Decode a bitmask integer back to an array of module keys.
+     * Returns ['all'] when every individual module bit is set.
+     */
+    public function bitmaskToModules(int $bitmask): array
+    {
+        $fullMask = array_sum(self::MODULE_BITS);
+        if ($bitmask === $fullMask) {
+            return ['all'];
+        }
+        $mods = [];
+        foreach (self::MODULE_BITS as $mod => $bit) {
+            if ($bitmask & $bit) {
+                $mods[] = $mod;
+            }
+        }
+        return $mods;
+    }
+
+    /**
+     * Decode the module bitmask that is encoded in the first group of a
+     * TACHO-XXXX-XXXX-XXXX-XXXX license key.
+     *
+     * Returns an empty array when the key has an unexpected format.
+     *
+     * @return string[]
+     */
+    public function decodeModulesFromKey(string $licenseKey): array
+    {
+        // Expected format: TACHO-XXXX-XXXX-XXXX-XXXX
+        if (!preg_match('/^TACHO-([A-Z0-9]{4})-[A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{4}$/', strtoupper($licenseKey), $m)) {
+            return [];
+        }
+        $bitmask = (int)base_convert(strtolower($m[1]), 36, 10);
+        return $this->bitmaskToModules($bitmask);
     }
 
     /** Throw when no secret is configured or provided. */
