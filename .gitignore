@@ -1,0 +1,23 @@
+# Environment configuration (contains secrets)
+.env
+
+# SQLite database files
+database/*.db
+database/*.sqlite
+
+# PHP dependency managers
+vendor/
+composer.lock
+
+# OS-generated files
+.DS_Store
+Thumbs.db
+
+# IDE files
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Log files
+*.log
