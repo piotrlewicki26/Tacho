@@ -50,6 +50,30 @@ if (!$isSetupPage && !file_exists(dirname(__DIR__) . '/.installed')) {
     }
 }
 
+// ── Database migrations (safe no-op on each boot) ──────────────────────────
+if (!$isSetupPage) {
+    try {
+        $db = Core\Database::getInstance();
+        $hasLicenseSecret = (bool) $db->query(
+            "SELECT EXISTS(
+               SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS
+               WHERE TABLE_SCHEMA = DATABASE()
+                 AND TABLE_NAME   = 'companies'
+                 AND COLUMN_NAME  = 'license_secret'
+             )"
+        )->fetchColumn();
+        if (!$hasLicenseSecret) {
+            $db->exec(
+                "ALTER TABLE `companies`
+                 ADD COLUMN `license_secret` VARCHAR(64) DEFAULT NULL
+                 COMMENT 'Per-company HMAC secret for license verification'"
+            );
+        }
+    } catch (\Throwable $e) {
+        // DB not yet available (first-time setup) – skip silently
+    }
+}
+
 // ── Router ─────────────────────────────────────────────────────────────────
 $router = new Core\Router();
 

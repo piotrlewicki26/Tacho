@@ -14,212 +14,169 @@
 $user        = \Core\Auth::user();
 $companyId   = \Core\Auth::companyId();
 $currentPath = parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH);
-$isActive    = fn(string $p) => str_starts_with($currentPath, $p) ? 'active' : '';
 
-// Pre-fetch company name once
+$matchesPath = function(string $p) use ($currentPath): bool {
+    return $p === '/' ? $currentPath === '/' : str_starts_with($currentPath, $p);
+};
+$isActive    = function(string $p) use ($matchesPath): string {
+    return $matchesPath($p) ? 'active' : '';
+};
+$anyActive   = function(array $paths) use ($matchesPath): bool {
+    foreach ($paths as $p) {
+        if ($matchesPath($p)) return true;
+    }
+    return false;
+};
+
 $companyName = '';
 if ($companyId) {
     $co = \Core\Database::fetchOne('SELECT name FROM companies WHERE id=:id', ['id' => $companyId]);
     if ($co) $companyName = $co['name'];
 }
 
-// Helper: is any path in array active? (for auto-expanding groups)
-$anyActive = function(array $paths) use ($currentPath): bool {
-    foreach ($paths as $p) {
-        if ($p === '/' ? $currentPath === '/' : str_starts_with($currentPath, $p)) return true;
-    }
-    return false;
-};
-$roleLabels = ['superadmin' => 'Super Admin', 'admin' => 'Administrator', 'operator' => 'Operator'];
-$roleLabel  = $roleLabels[$user['role'] ?? ''] ?? ($user['role'] ?? '');
+$roleLabels  = ['superadmin' => 'Super Admin', 'admin' => 'Administrator', 'operator' => 'Operator'];
+$roleLabel   = $roleLabels[$user['role'] ?? ''] ?? ($user['role'] ?? '');
 $userInitial = strtoupper(substr($user['name'] ?? 'U', 0, 1));
 ?>
 
-<!-- Mobile overlay -->
-<div class="sidebar-overlay" id="sidebarOverlay"></div>
+<!-- ═══════════════════ TOP NAVBAR ═══════════════════ -->
+<header class="top-navbar" id="topNavbar">
+  <div class="navbar-inner">
 
-<!-- ═══════════════════ SIDEBAR ═══════════════════ -->
-<nav id="sidebar" class="sidebar">
-
-  <!-- Brand header -->
-  <div class="sidebar-header">
-    <a href="/" class="sidebar-brand">
-      <div class="sidebar-brand-icon">
-        <i class="bi bi-speedometer2"></i>
-      </div>
-      <span class="sidebar-brand-name">Tacho<strong>System</strong></span>
+    <!-- Brand -->
+    <a href="/" class="navbar-brand-link">
+      <div class="navbar-brand-icon"><i class="bi bi-speedometer2"></i></div>
+      <span class="navbar-brand-text">Tacho<strong>System</strong></span>
     </a>
-    <button class="sidebar-pin-btn d-none d-lg-flex" id="sidebarPin" title="Zwiń/Rozwiń">
-      <i class="bi bi-layout-sidebar-inset"></i>
+
+    <!-- Mobile toggle -->
+    <button class="navbar-mobile-btn" id="navbarMobileToggle" aria-label="Menu" aria-expanded="false" aria-controls="navbarMenu">
+      <i class="bi bi-list"></i>
     </button>
-  </div>
 
-  <!-- Navigation -->
-  <div class="sidebar-nav">
+    <!-- ── Navigation items ── -->
+    <nav class="navbar-menu" id="navbarMenu" aria-label="Główna nawigacja">
 
-    <!-- ── Dashboard ────────────────────────────────────── -->
-    <a class="nav-item <?= $currentPath === '/' ? 'active' : '' ?>" href="/">
-      <span class="nav-icon"><i class="bi bi-grid-1x2-fill"></i></span>
-      <span class="nav-label">Dashboard</span>
-    </a>
-
-    <!-- ── Flota ────────────────────────────────────────── -->
-    <div class="nav-group <?= $anyActive(['/drivers', '/vehicles']) ? 'open' : '' ?>" data-group="fleet">
-      <button class="nav-group-toggle" type="button" aria-expanded="<?= $anyActive(['/drivers', '/vehicles']) ? 'true' : 'false' ?>">
-        <span class="nav-icon"><i class="bi bi-diagram-3-fill"></i></span>
-        <span class="nav-label">Flota</span>
-        <i class="bi bi-chevron-down nav-chevron"></i>
-      </button>
-      <div class="nav-group-items">
-        <a class="nav-item nav-sub <?= $isActive('/drivers') ?>" href="/drivers">
-          <span class="nav-icon"><i class="bi bi-person-badge-fill"></i></span>
-          <span class="nav-label">Kierowcy</span>
-        </a>
-        <a class="nav-item nav-sub <?= $isActive('/vehicles') ?>" href="/vehicles">
-          <span class="nav-icon"><i class="bi bi-truck-front-fill"></i></span>
-          <span class="nav-label">Pojazdy</span>
-        </a>
-      </div>
-    </div>
-
-    <!-- ── Tachograf ─────────────────────────────────────── -->
-    <div class="nav-group <?= $anyActive(['/analysis']) ? 'open' : '' ?>" data-group="tacho">
-      <button class="nav-group-toggle" type="button" aria-expanded="<?= $anyActive(['/analysis']) ? 'true' : 'false' ?>">
-        <span class="nav-icon"><i class="bi bi-hdd-fill"></i></span>
-        <span class="nav-label">Tachograf</span>
-        <i class="bi bi-chevron-down nav-chevron"></i>
-      </button>
-      <div class="nav-group-items">
-        <a class="nav-item nav-sub <?= $isActive('/analysis') ?>" href="/analysis">
-          <span class="nav-icon"><i class="bi bi-file-earmark-binary-fill"></i></span>
-          <span class="nav-label">Analiza DDD</span>
-        </a>
-      </div>
-    </div>
-
-    <!-- ── Raporty ───────────────────────────────────────── -->
-    <div class="nav-group <?= $anyActive(['/reports']) ? 'open' : '' ?>" data-group="reports">
-      <button class="nav-group-toggle" type="button" aria-expanded="<?= $anyActive(['/reports']) ? 'true' : 'false' ?>">
-        <span class="nav-icon"><i class="bi bi-bar-chart-fill"></i></span>
-        <span class="nav-label">Raporty</span>
-        <i class="bi bi-chevron-down nav-chevron"></i>
-      </button>
-      <div class="nav-group-items">
-        <a class="nav-item nav-sub <?= $isActive('/reports/vacation') ?>" href="/reports/vacation">
-          <span class="nav-icon"><i class="bi bi-calendar-check-fill"></i></span>
-          <span class="nav-label">Urlopówka</span>
-        </a>
-        <a class="nav-item nav-sub <?= $isActive('/reports/delegation') ?>" href="/reports/delegation">
-          <span class="nav-icon"><i class="bi bi-globe-europe-africa"></i></span>
-          <span class="nav-label">Delegacja</span>
-        </a>
-      </div>
-    </div>
-
-    <!-- ── Administracja (admin + superadmin) ────────────── -->
-    <?php if ($user && in_array($user['role'], ['superadmin', 'admin'], true)): ?>
-    <?php $adminPaths = $user['role'] === 'superadmin' ? ['/companies', '/admin/licenses', '/admin/users'] : ['/admin/users']; ?>
-    <div class="nav-group <?= $anyActive($adminPaths) ? 'open' : '' ?>" data-group="admin">
-      <button class="nav-group-toggle" type="button" aria-expanded="<?= $anyActive($adminPaths) ? 'true' : 'false' ?>">
-        <span class="nav-icon"><i class="bi bi-shield-lock-fill"></i></span>
-        <span class="nav-label">Administracja</span>
-        <i class="bi bi-chevron-down nav-chevron"></i>
-      </button>
-      <div class="nav-group-items">
-        <?php if ($user['role'] === 'superadmin'): ?>
-        <a class="nav-item nav-sub <?= $isActive('/companies') ?>" href="/companies">
-          <span class="nav-icon"><i class="bi bi-building-fill"></i></span>
-          <span class="nav-label">Firmy</span>
-        </a>
-        <a class="nav-item nav-sub <?= $isActive('/admin/licenses') ?>" href="/admin/licenses">
-          <span class="nav-icon"><i class="bi bi-key-fill"></i></span>
-          <span class="nav-label">Licencje</span>
-        </a>
-        <?php endif; ?>
-        <a class="nav-item nav-sub <?= $isActive('/admin/users') ?>" href="/admin/users">
-          <span class="nav-icon"><i class="bi bi-people-fill"></i></span>
-          <span class="nav-label">Użytkownicy</span>
-        </a>
-      </div>
-    </div>
-    <?php endif; ?>
-
-  </div><!-- /.sidebar-nav -->
-
-  <!-- User footer -->
-  <div class="sidebar-footer">
-    <div class="sidebar-user">
-      <div class="sidebar-user-avatar"><?= $userInitial ?></div>
-      <div class="sidebar-user-info">
-        <div class="sidebar-user-name"><?= htmlspecialchars($user['name'] ?? '') ?></div>
-        <div class="sidebar-user-role"><?= htmlspecialchars($roleLabel) ?></div>
-      </div>
-      <a href="/logout" class="sidebar-logout-btn" title="Wyloguj się">
-        <i class="bi bi-box-arrow-right"></i>
+      <!-- Dashboard -->
+      <a class="nav-link <?= $isActive('/') ?>" href="/">
+        <i class="bi bi-grid-1x2-fill nav-icon"></i>
+        <span>Dashboard</span>
       </a>
-    </div>
-  </div>
 
-</nav><!-- /#sidebar -->
+      <!-- Fleet dropdown -->
+      <div class="nav-dropdown <?= $anyActive(['/drivers','/vehicles']) ? 'active' : '' ?>">
+        <button class="nav-link nav-dropdown-toggle" type="button" aria-haspopup="true" aria-expanded="false">
+          <i class="bi bi-diagram-3-fill nav-icon"></i>
+          <span>Flota</span>
+          <i class="bi bi-chevron-down nav-caret"></i>
+        </button>
+        <div class="nav-dropdown-menu">
+          <a class="nav-dropdown-item <?= $isActive('/drivers') ?>" href="/drivers">
+            <i class="bi bi-person-badge-fill"></i> Kierowcy
+          </a>
+          <a class="nav-dropdown-item <?= $isActive('/vehicles') ?>" href="/vehicles">
+            <i class="bi bi-truck-front-fill"></i> Pojazdy
+          </a>
+        </div>
+      </div>
 
-<!-- ═══════════════════ MAIN WRAPPER ═══════════════════ -->
-<div class="main-wrapper">
+      <!-- Tachograph dropdown -->
+      <div class="nav-dropdown <?= $anyActive(['/analysis']) ? 'active' : '' ?>">
+        <button class="nav-link nav-dropdown-toggle" type="button" aria-haspopup="true" aria-expanded="false">
+          <i class="bi bi-hdd-fill nav-icon"></i>
+          <span>Tachograf</span>
+          <i class="bi bi-chevron-down nav-caret"></i>
+        </button>
+        <div class="nav-dropdown-menu">
+          <a class="nav-dropdown-item <?= $isActive('/analysis') ?>" href="/analysis">
+            <i class="bi bi-file-earmark-binary-fill"></i> Analiza DDD
+          </a>
+        </div>
+      </div>
 
-  <!-- Topbar -->
-  <header class="topbar">
-    <div class="topbar-start">
-      <!-- Mobile hamburger -->
-      <button class="topbar-icon-btn d-lg-none" id="sidebarToggle" aria-label="Menu">
-        <i class="bi bi-list"></i>
-      </button>
-      <!-- Desktop collapse (mirrors sidebar pin) -->
-      <button class="topbar-icon-btn d-none d-lg-flex" id="sidebarCollapseBtn" aria-label="Toggle sidebar">
-        <i class="bi bi-layout-sidebar-inset"></i>
-      </button>
-      <div class="topbar-divider d-none d-lg-block"></div>
-      <h1 class="topbar-title"><?= htmlspecialchars($pageTitle ?? '') ?></h1>
-    </div>
+      <!-- Reports dropdown -->
+      <div class="nav-dropdown <?= $anyActive(['/reports']) ? 'active' : '' ?>">
+        <button class="nav-link nav-dropdown-toggle" type="button" aria-haspopup="true" aria-expanded="false">
+          <i class="bi bi-bar-chart-fill nav-icon"></i>
+          <span>Raporty</span>
+          <i class="bi bi-chevron-down nav-caret"></i>
+        </button>
+        <div class="nav-dropdown-menu">
+          <a class="nav-dropdown-item <?= $isActive('/reports/vacation') ?>" href="/reports/vacation">
+            <i class="bi bi-calendar-check-fill"></i> Urlopówka
+          </a>
+          <a class="nav-dropdown-item <?= $isActive('/reports/delegation') ?>" href="/reports/delegation">
+            <i class="bi bi-globe-europe-africa"></i> Delegacja
+          </a>
+        </div>
+      </div>
 
-    <div class="topbar-end">
-      <?php if ($companyName): ?>
-      <div class="topbar-company">
-        <i class="bi bi-building me-1 opacity-50"></i><?= htmlspecialchars($companyName) ?>
+      <!-- Admin dropdown (admin + superadmin) -->
+      <?php if ($user && in_array($user['role'], ['superadmin', 'admin'], true)): ?>
+      <?php $adminPaths = $user['role'] === 'superadmin' ? ['/companies','/admin/licenses','/admin/users'] : ['/admin/users']; ?>
+      <div class="nav-dropdown <?= $anyActive($adminPaths) ? 'active' : '' ?>">
+        <button class="nav-link nav-dropdown-toggle" type="button" aria-haspopup="true" aria-expanded="false">
+          <i class="bi bi-shield-lock-fill nav-icon"></i>
+          <span>Administracja</span>
+          <i class="bi bi-chevron-down nav-caret"></i>
+        </button>
+        <div class="nav-dropdown-menu">
+          <?php if ($user['role'] === 'superadmin'): ?>
+          <a class="nav-dropdown-item <?= $isActive('/companies') ?>" href="/companies">
+            <i class="bi bi-building-fill"></i> Firmy
+          </a>
+          <a class="nav-dropdown-item <?= $isActive('/admin/licenses') ?>" href="/admin/licenses">
+            <i class="bi bi-key-fill"></i> Licencje
+          </a>
+          <?php endif; ?>
+          <a class="nav-dropdown-item <?= $isActive('/admin/users') ?>" href="/admin/users">
+            <i class="bi bi-people-fill"></i> Użytkownicy
+          </a>
+        </div>
       </div>
       <?php endif; ?>
 
-      <div class="topbar-date">
-        <i class="bi bi-calendar3 me-1 opacity-50"></i><?= date('d.m.Y') ?>
+    </nav><!-- /.navbar-menu -->
+
+    <!-- ── Right section ── -->
+    <div class="navbar-right">
+
+      <?php if ($companyName): ?>
+      <div class="navbar-company-badge">
+        <i class="bi bi-building opacity-50"></i>
+        <span><?= htmlspecialchars($companyName) ?></span>
       </div>
+      <?php endif; ?>
 
       <!-- User dropdown -->
-      <div class="dropdown">
-        <button class="topbar-user-btn dropdown-toggle" type="button"
-                data-bs-toggle="dropdown" aria-expanded="false">
-          <div class="topbar-avatar"><?= $userInitial ?></div>
-          <span class="topbar-user-name d-none d-md-block"><?= htmlspecialchars($user['name'] ?? '') ?></span>
-          <i class="bi bi-chevron-down topbar-user-chevron d-none d-md-block"></i>
+      <div class="nav-dropdown nav-dropdown-right">
+        <button class="navbar-user-btn nav-dropdown-toggle" type="button" aria-haspopup="true" aria-expanded="false">
+          <div class="navbar-avatar"><?= $userInitial ?></div>
+          <span class="navbar-user-name d-none d-lg-block"><?= htmlspecialchars($user['name'] ?? '') ?></span>
+          <i class="bi bi-chevron-down nav-caret d-none d-lg-block"></i>
         </button>
-        <ul class="dropdown-menu dropdown-menu-end topbar-dropdown">
-          <li class="dropdown-header-item">
-            <div class="d-flex align-items-center gap-2 px-1">
-              <div class="topbar-avatar topbar-avatar-lg"><?= $userInitial ?></div>
-              <div>
-                <div class="fw-semibold small"><?= htmlspecialchars($user['name'] ?? '') ?></div>
-                <div class="text-muted" style="font-size:.72rem"><?= htmlspecialchars($user['email'] ?? '') ?></div>
-                <span class="badge badge-role mt-1"><?= htmlspecialchars($roleLabel) ?></span>
-              </div>
+        <div class="nav-dropdown-menu nav-dropdown-menu-end">
+          <div class="nav-dropdown-header">
+            <div class="navbar-avatar navbar-avatar-lg"><?= $userInitial ?></div>
+            <div>
+              <div class="fw-semibold small"><?= htmlspecialchars($user['name'] ?? '') ?></div>
+              <div class="text-muted" style="font-size:.72rem"><?= htmlspecialchars($user['email'] ?? '') ?></div>
+              <span class="badge-role mt-1 d-inline-block"><?= htmlspecialchars($roleLabel) ?></span>
             </div>
-          </li>
-          <li><hr class="dropdown-divider"></li>
-          <li>
-            <a class="dropdown-item" href="/logout">
-              <i class="bi bi-box-arrow-right me-2 text-danger"></i>Wyloguj się
-            </a>
-          </li>
-        </ul>
+          </div>
+          <div class="nav-dropdown-divider"></div>
+          <a class="nav-dropdown-item text-danger-hover" href="/logout">
+            <i class="bi bi-box-arrow-right text-danger"></i> Wyloguj się
+          </a>
+        </div>
       </div>
-    </div>
-  </header>
+
+    </div><!-- /.navbar-right -->
+  </div><!-- /.navbar-inner -->
+</header><!-- /#topNavbar -->
+
+<!-- ═══════════════════ PAGE WRAPPER ═══════════════════ -->
+<div class="page-wrapper">
 
   <!-- Flash messages -->
   <?php $flash = \Core\Auth::getFlash(); if ($flash): ?>
@@ -237,7 +194,7 @@ $userInitial = strtoupper(substr($user['name'] ?? 'U', 0, 1));
     <?= $content ?? '' ?>
   </main>
 
-</div><!-- /.main-wrapper -->
+</div><!-- /.page-wrapper -->
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
