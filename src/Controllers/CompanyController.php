@@ -137,8 +137,9 @@ class CompanyController
 
     public function users(array $params): void
     {
-        Auth::requireRole('superadmin');
-        $users     = (new User())->allForCompany(null);
+        Auth::requireRole('superadmin', 'admin');
+        $companyId = Auth::isSuperAdmin() ? null : Auth::companyId();
+        $users     = (new User())->allForCompany($companyId);
         $flash     = Auth::getFlash();
         $pageTitle = 'Użytkownicy';
         $content   = $this->render('admin/users', compact('users'));

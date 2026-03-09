@@ -15,14 +15,15 @@ class AnalysisController
     public function index(array $params): void
     {
         Auth::requireAuth();
-        if (!License::isModuleAllowed(Auth::companyId() ?? 0, 'analysis')) {
+        $cid = Auth::companyId();
+        if (!Auth::isSuperAdmin() && !License::isModuleAllowed($cid ?? 0, 'analysis')) {
             Auth::setFlash('error', 'Brak licencji na moduł analizy.');
             header('Location: /'); exit;
         }
 
-        $files     = (new TachoFile())->allForCompany(Auth::companyId());
-        $drivers   = (new Driver())->allForCompany(Auth::companyId());
-        $vehicles  = (new Vehicle())->allForCompany(Auth::companyId());
+        $files    = $cid ? (new TachoFile())->allForCompany($cid) : [];
+        $drivers  = $cid ? (new Driver())->allForCompany($cid) : [];
+        $vehicles = $cid ? (new Vehicle())->allForCompany($cid) : [];
         $flash     = Auth::getFlash();
         $pageTitle = 'Analiza plików DDD';
         $content   = $this->render('analysis/upload', compact('files', 'drivers', 'vehicles'));
@@ -35,7 +36,12 @@ class AnalysisController
         if (!Auth::validateCsrf()) { header('Location: /analysis'); exit; }
 
         $cid = Auth::companyId();
-        if (!License::isModuleAllowed($cid ?? 0, 'analysis')) {
+        if (!$cid) {
+            Auth::setFlash('error', 'Konto superadmin nie ma przypisanej firmy. Użyj konta firmowego do wgrania pliku DDD.');
+            header('Location: /analysis'); exit;
+        }
+
+        if (!Auth::isSuperAdmin() && !License::isModuleAllowed($cid, 'analysis')) {
             Auth::setFlash('error', 'Brak licencji na moduł analizy.');
             header('Location: /'); exit;
         }

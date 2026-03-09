@@ -63,8 +63,9 @@
       </a>
     </li>
 
-    <?php if ($user && $user['role'] === 'superadmin'): ?>
+    <?php if ($user && in_array($user['role'], ['superadmin', 'admin'], true)): ?>
     <li class="nav-section-label mt-3">ADMINISTRACJA</li>
+    <?php if ($user['role'] === 'superadmin'): ?>
     <li class="nav-item">
       <a class="nav-link <?= $isActive('/companies') ?>" href="/companies">
         <i class="bi bi-building me-2"></i>Firmy
@@ -75,6 +76,7 @@
         <i class="bi bi-key me-2"></i>Licencje
       </a>
     </li>
+    <?php endif; ?>
     <li class="nav-item">
       <a class="nav-link <?= $isActive('/admin/users') ?>" href="/admin/users">
         <i class="bi bi-people me-2"></i>Użytkownicy
