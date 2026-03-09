@@ -26,6 +26,7 @@ class DriverController
     public function create(array $params): void
     {
         Auth::requireRole('admin', 'superadmin');
+        $this->companyId(); // fail early with a clear message if no company context
         $flash     = Auth::getFlash();
         $pageTitle = 'Dodaj kierowcę';
         $content   = $this->render('drivers/create', ['driver' => null]);
@@ -109,10 +110,10 @@ class DriverController
 
     private function companyId(): int
     {
-        $cid = Auth::companyId();
+        $cid = Auth::effectiveCompanyId();
         if (!$cid) {
-            Auth::setFlash('error', 'Konto nie jest przypisane do żadnej firmy. Użyj konta firmowego.');
-            header('Location: /');
+            Auth::setFlash('error', 'Konto nie jest przypisane do żadnej firmy. Użyj konta firmowego lub wybierz firmę.');
+            header('Location: /drivers');
             exit;
         }
         return $cid;

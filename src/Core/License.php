@@ -241,7 +241,15 @@ class License
         if (!$valid) {
             $update['is_active'] = 0;
         }
-        Database::update('licenses', $update, 'id = :id', ['id' => (int) $lic['id']]);
+        try {
+            Database::update('licenses', $update, 'id = :id', ['id' => (int) $lic['id']]);
+        } catch (\PDOException $e) {
+            // Ignore "unknown column" errors on installs where the migration
+            // for last_verified_at has not yet run.  All other PDO errors
+            // (connection lost, constraint violation, …) are also suppressed
+            // here because a failing remote-check stamp must never break the
+            // main request; the verification will be retried on the next boot.
+        }
     }
 
 
