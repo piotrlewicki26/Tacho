@@ -428,3 +428,55 @@ body {
   .table > :not(caption) > * > * { border-color: #ccc !important; color: #000 !important; }
   .text-muted { color: #555 !important; }
 }
+
+/* ── Enhanced dropdown items (with title + subtitle) ────────────────────── */
+.nav-dropdown-item {
+  gap: 10px;
+}
+.nav-dropdown-item-title {
+  font-size: .83rem;
+  font-weight: 500;
+  color: var(--text);
+  line-height: 1.3;
+}
+.nav-dropdown-item-sub {
+  font-size: .7rem;
+  color: var(--text-muted);
+  margin-top: 1px;
+}
+.nav-dropdown-item:hover .nav-dropdown-item-title { color: var(--text); }
+.nav-dropdown-item.active .nav-dropdown-item-title { color: var(--accent); }
+
+.nav-dropdown-section-label {
+  font-size: .65rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .6px;
+  color: var(--text-dim);
+  padding: 6px 10px 3px;
+}
+
+/* Wider dropdown for rich items */
+.nav-dropdown-menu { min-width: 210px; }
+
+/* ── Navbar vertical rule ───────────────────────────────────────────────── */
+.navbar-vr {
+  width: 1px; height: 22px;
+  background: var(--border-light);
+  flex-shrink: 0;
+  margin: 0 4px;
+}
+
+/* ── Date display ───────────────────────────────────────────────────────── */
+.navbar-date {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: .75rem;
+  color: var(--text-muted);
+  padding: 4px 8px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  white-space: nowrap;
+}

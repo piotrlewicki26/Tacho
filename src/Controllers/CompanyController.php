@@ -119,11 +119,17 @@ class CompanyController
         $companyId = (int)$params['id'];
         $company   = $this->findOr404($companyId);
 
+        // Block re-generation once a secret exists – it would invalidate all existing licenses
+        if (!empty($company['license_secret'])) {
+            Auth::setFlash('error', 'Sekret dla firmy "' . $company['name'] . '" już istnieje. Nie można go wygenerować ponownie.');
+            header('Location: /admin/licenses'); exit;
+        }
+
         $secret = License::generateSecret();
         $this->model->update($companyId, ['license_secret' => $secret]);
 
         Auth::log('license_secret_generated', "Nowy sekret dla firmy ID $companyId");
-        Auth::setFlash('success', 'Nowy klucz SECRET wygenerowany dla: ' . $company['name']);
+        Auth::setFlash('success', 'Klucz SECRET wygenerowany dla: ' . $company['name']);
         header('Location: /admin/licenses'); exit;
     }
 

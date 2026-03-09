@@ -19,8 +19,11 @@ class DDDParser
     private const FILE_TYPE_CARD   = 'driver_card';
     private const FILE_TYPE_VU     = 'tachograph';
 
+    /** Safety limits to prevent infinite loops on malformed files. */
+    private const MAX_TLV_ITERATIONS      = 10000;
+    private const MAX_ACTIVITY_ITERATIONS = 20000;
+
     // Known DDD block tags (subset of the standard)
-    private const TAG_CARD_ICC     = 0x0520; // CardIccIdentification
     private const TAG_CARD_NUMBER  = 0x0521; // DriverCardHolderIdentification
     private const TAG_DRV_ID       = 0x0522; // DriverCardHolderName
     private const TAG_ACTIVITY     = 0x0530; // CardActivityDailyRecord
@@ -88,12 +91,16 @@ class DDDParser
         ];
 
         $offset = 0;
-        while ($offset < $this->len - 4) {
+        $iterations = 0;
+        while ($offset < $this->len - 4 && $iterations++ < self::MAX_TLV_ITERATIONS) {
             $tag    = $this->readUint16($offset);
             $length = $this->readUint16($offset + 2);
             $offset += 4;
 
-            if ($length <= 0 || $offset + $length > $this->len) break;
+            if ($length <= 0 || $length > 65535 || $offset + $length > $this->len) {
+                $offset++; // try to re-sync instead of hard break
+                continue;
+            }
 
             if ($tag === self::TAG_DRV_ID && $length >= 26) {
                 // Structure: driverSurname (36 bytes), driverFirstNames (36 bytes)
@@ -118,12 +125,16 @@ class DDDParser
         $info = ['registration' => '', 'vin' => '', 'nation' => ''];
 
         $offset = 0;
-        while ($offset < $this->len - 4) {
+        $iterations = 0;
+        while ($offset < $this->len - 4 && $iterations++ < self::MAX_TLV_ITERATIONS) {
             $tag    = $this->readUint16($offset);
             $length = $this->readUint16($offset + 2);
             $offset += 4;
 
-            if ($length <= 0 || $offset + $length > $this->len) break;
+            if ($length <= 0 || $length > 65535 || $offset + $length > $this->len) {
+                $offset++;
+                continue;
+            }
 
             if ($tag === self::TAG_VEH_USED && $length >= 8) {
                 // VehicleRegistrationIdentification: nation(3) + VRN(14) + VIN(17)
@@ -146,13 +157,17 @@ class DDDParser
     {
         $activities = [];
         $offset     = 0;
+        $iterations = 0;
 
-        while ($offset < $this->len - 4) {
+        while ($offset < $this->len - 4 && $iterations++ < self::MAX_ACTIVITY_ITERATIONS) {
             $tag    = $this->readUint16($offset);
             $length = $this->readUint16($offset + 2);
             $offset += 4;
 
-            if ($length <= 0 || $offset + $length > $this->len) break;
+            if ($length <= 0 || $length > 65535 || $offset + $length > $this->len) {
+                $offset++; // re-sync: skip one byte and retry
+                continue;
+            }
 
             if ($tag === self::TAG_ACTIVITY) {
                 $block      = substr($this->data, $offset, $length);

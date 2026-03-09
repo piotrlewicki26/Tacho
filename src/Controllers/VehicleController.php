@@ -77,7 +77,11 @@ class VehicleController
     private function companyId(): int
     {
         $cid = Auth::companyId();
-        if (!$cid) exit('Brak firmy.');
+        if (!$cid) {
+            Auth::setFlash('error', 'Konto nie jest przypisane do żadnej firmy. Użyj konta firmowego.');
+            header('Location: /');
+            exit;
+        }
         return $cid;
     }
 

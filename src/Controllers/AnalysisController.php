@@ -60,15 +60,19 @@ class AnalysisController
             header('Location: /analysis'); exit;
         }
 
-        // Validate MIME
-        $finfo = new \finfo(FILEINFO_MIME_TYPE);
-        $mime  = $finfo->file($file['tmp_name']);
-        $allowedMimes = ['application/octet-stream', 'application/x-binary', 'application/binary', 'text/plain'];
-        if (!in_array($mime, $allowedMimes, true)) {
-            // Also allow by extension
-            $ext = strtolower(pathinfo($origName, PATHINFO_EXTENSION));
-            if (!in_array($ext, ['ddd', 'c1b', 'dt', 'dtco'], true)) {
-                Auth::setFlash('error', 'Niedozwolony typ pliku. Akceptowane: .ddd, .c1b, .dt');
+        // Validate by extension first (DDD files have many possible MIME types)
+        $ext = strtolower(pathinfo($origName, PATHINFO_EXTENSION));
+        $allowedExts  = ['ddd', 'c1b', 'dt', 'dtco', 'v1b', 'm1', 'vu'];
+        $allowedMimes = [
+            'application/octet-stream', 'application/x-binary',
+            'application/binary', 'text/plain',
+            'application/x-dosexec', 'application/x-ddd',
+        ];
+        if (!in_array($ext, $allowedExts, true)) {
+            $finfo = new \finfo(FILEINFO_MIME_TYPE);
+            $mime  = $finfo->file($file['tmp_name']);
+            if (!in_array($mime, $allowedMimes, true)) {
+                Auth::setFlash('error', 'Niedozwolony typ pliku. Akceptowane rozszerzenia: .ddd, .c1b, .dt, .dtco, .v1b, .m1, .vu');
                 header('Location: /analysis'); exit;
             }
         }

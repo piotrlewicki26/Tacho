@@ -1,8 +1,8 @@
 <?php /** @var array $companies @var array $licenses */ ?>
 <div class="d-flex justify-content-between align-items-center mb-4">
   <div>
-    <h4 class="fw-bold mb-0">Licencje</h4>
-    <p class="text-muted small mb-0">Zarządzaj sekretami i aktywuj licencje dla firm</p>
+    <h4 class="fw-bold mb-0">Aktywacja licencji</h4>
+    <p class="text-muted small mb-0">Generuj klucz SECRET i aktywuj licencje dla firm</p>
   </div>
 </div>
 
@@ -79,16 +79,21 @@
           <!-- Actions -->
           <td class="text-end">
             <div class="d-flex justify-content-end gap-2">
-              <!-- Generate / regenerate secret -->
+              <!-- Generate secret (only if not yet generated) -->
+              <?php if (!$hasSecret): ?>
               <form method="POST" action="/admin/licenses/<?= $co['id'] ?>/generate-secret"
                     class="d-inline"
-                    onsubmit="return confirm('<?= $hasSecret ? 'Regeneracja sekretu unieważni istniejące licencje. Kontynuować?' : 'Wygenerować nowy sekret dla tej firmy?' ?>');">
+                    onsubmit="return confirm('Czy wygenerować klucz SECRET dla tej firmy?');">
                 <input type="hidden" name="_token" value="<?= \Core\Auth::csrfToken() ?>">
-                <button type="submit" class="btn btn-xs <?= $hasSecret ? 'btn-outline-warning' : 'btn-outline-primary' ?>">
-                  <i class="bi bi-<?= $hasSecret ? 'arrow-clockwise' : 'key' ?> me-1"></i>
-                  <?= $hasSecret ? 'Regeneruj SECRET' : 'Generuj SECRET' ?>
+                <button type="submit" class="btn btn-xs btn-outline-primary">
+                  <i class="bi bi-key me-1"></i>Generuj SECRET
                 </button>
               </form>
+              <?php else: ?>
+              <span class="badge bg-success-subtle text-success border border-success-subtle small px-2 py-1">
+                <i class="bi bi-shield-check me-1"></i>SECRET aktywny
+              </span>
+              <?php endif; ?>
 
               <!-- Activate license (only if secret exists) -->
               <?php if ($hasSecret): ?>
@@ -96,7 +101,10 @@
                       data-bs-toggle="modal"
                       data-bs-target="#activateModal"
                       data-company-id="<?= $co['id'] ?>"
-                      data-company-name="<?= htmlspecialchars($co['name']) ?>">
+                      data-company-name="<?= htmlspecialchars($co['name']) ?>"
+                      data-modules="<?= htmlspecialchars($lic ? ($lic['modules'] ?? '[]') : '[]') ?>"
+                      data-max-operators="<?= $lic ? (int)$lic['max_operators'] : 5 ?>"
+                      data-max-drivers="<?= $lic ? (int)$lic['max_drivers'] : 50 ?>">
                 <i class="bi bi-patch-check me-1"></i>Aktywuj licencję
               </button>
               <?php else: ?>
@@ -252,27 +260,38 @@
   const modal = document.getElementById('activateModal');
   if (modal) {
     modal.addEventListener('show.bs.modal', function (e) {
-      const btn       = e.relatedTarget;
-      const companyId = btn.dataset.companyId;
-      const name      = btn.dataset.companyName;
+      const btn         = e.relatedTarget;
+      const companyId   = btn.dataset.companyId;
+      const name        = btn.dataset.companyName;
+      const modulesJson = btn.dataset.modules  || '[]';
+      const maxOps      = btn.dataset.maxOperators || '5';
+      const maxDrv      = btn.dataset.maxDrivers   || '50';
+
       document.getElementById('activateCompanyName').textContent = name;
       document.getElementById('activateForm').action = '/admin/licenses/' + companyId + '/activate';
       document.getElementById('activateLicenseKey').value = '';
-      // Reset all form inputs to defaults
-      modal.querySelectorAll('input[name="modules[]"]').forEach(cb => { cb.checked = false; });
-      const opsEl = modal.querySelector('input[name="max_operators"]');
-      const drvEl = modal.querySelector('input[name="max_drivers"]');
+
+      // Pre-check modules from the currently active license
+      let activeModules = [];
+      try { activeModules = JSON.parse(modulesJson); } catch(_) {}
+      modal.querySelectorAll('input[name="modules[]"]').forEach(function (cb) {
+        cb.checked = activeModules.includes(cb.value);
+      });
+
+      // Pre-fill limits from active license (or defaults)
+      const opsEl  = modal.querySelector('input[name="max_operators"]');
+      const drvEl  = modal.querySelector('input[name="max_drivers"]');
       const fromEl = modal.querySelector('input[name="valid_from"]');
       const toEl   = modal.querySelector('input[name="valid_to"]');
       const hwEl   = modal.querySelector('input[name="hardware_id"]');
-      if (opsEl)  opsEl.value  = '5';
-      if (drvEl)  drvEl.value  = '50';
+      if (opsEl)  opsEl.value  = maxOps;
+      if (drvEl)  drvEl.value  = maxDrv;
       if (fromEl) fromEl.value = new Date().toISOString().slice(0, 10);
       if (toEl) {
         const nextYear = new Date(); nextYear.setFullYear(nextYear.getFullYear() + 1);
         toEl.value = nextYear.toISOString().slice(0, 10);
       }
-      if (hwEl)   hwEl.value   = '';
+      if (hwEl) hwEl.value = '';
     });
   }
 

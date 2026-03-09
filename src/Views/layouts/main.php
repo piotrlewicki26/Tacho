@@ -49,10 +49,8 @@ $userInitial = strtoupper(substr($user['name'] ?? 'U', 0, 1));
       <span class="navbar-brand-text">Tacho<strong>System</strong></span>
     </a>
 
-    <!-- Mobile toggle -->
-    <button class="navbar-mobile-btn" id="navbarMobileToggle" aria-label="Menu" aria-expanded="false" aria-controls="navbarMenu">
-      <i class="bi bi-list"></i>
-    </button>
+    <!-- Divider -->
+    <div class="navbar-vr d-none d-lg-block"></div>
 
     <!-- ── Navigation items ── -->
     <nav class="navbar-menu" id="navbarMenu" aria-label="Główna nawigacja">
@@ -71,11 +69,14 @@ $userInitial = strtoupper(substr($user['name'] ?? 'U', 0, 1));
           <i class="bi bi-chevron-down nav-caret"></i>
         </button>
         <div class="nav-dropdown-menu">
+          <div class="nav-dropdown-section-label">Zarządzanie</div>
           <a class="nav-dropdown-item <?= $isActive('/drivers') ?>" href="/drivers">
-            <i class="bi bi-person-badge-fill"></i> Kierowcy
+            <i class="bi bi-person-badge-fill text-primary"></i>
+            <div><div class="nav-dropdown-item-title">Kierowcy</div><div class="nav-dropdown-item-sub">Lista i profile</div></div>
           </a>
           <a class="nav-dropdown-item <?= $isActive('/vehicles') ?>" href="/vehicles">
-            <i class="bi bi-truck-front-fill"></i> Pojazdy
+            <i class="bi bi-truck-front-fill text-warning"></i>
+            <div><div class="nav-dropdown-item-title">Pojazdy</div><div class="nav-dropdown-item-sub">Flota i tachografy</div></div>
           </a>
         </div>
       </div>
@@ -88,8 +89,10 @@ $userInitial = strtoupper(substr($user['name'] ?? 'U', 0, 1));
           <i class="bi bi-chevron-down nav-caret"></i>
         </button>
         <div class="nav-dropdown-menu">
+          <div class="nav-dropdown-section-label">Analiza danych</div>
           <a class="nav-dropdown-item <?= $isActive('/analysis') ?>" href="/analysis">
-            <i class="bi bi-file-earmark-binary-fill"></i> Analiza DDD
+            <i class="bi bi-file-earmark-binary-fill text-info"></i>
+            <div><div class="nav-dropdown-item-title">Analiza DDD</div><div class="nav-dropdown-item-sub">Wczytaj i analizuj pliki</div></div>
           </a>
         </div>
       </div>
@@ -102,11 +105,14 @@ $userInitial = strtoupper(substr($user['name'] ?? 'U', 0, 1));
           <i class="bi bi-chevron-down nav-caret"></i>
         </button>
         <div class="nav-dropdown-menu">
+          <div class="nav-dropdown-section-label">Dokumenty</div>
           <a class="nav-dropdown-item <?= $isActive('/reports/vacation') ?>" href="/reports/vacation">
-            <i class="bi bi-calendar-check-fill"></i> Urlopówka
+            <i class="bi bi-calendar-check-fill text-success"></i>
+            <div><div class="nav-dropdown-item-title">Urlopówka</div><div class="nav-dropdown-item-sub">Ewidencja urlopów</div></div>
           </a>
           <a class="nav-dropdown-item <?= $isActive('/reports/delegation') ?>" href="/reports/delegation">
-            <i class="bi bi-globe-europe-africa"></i> Delegacja
+            <i class="bi bi-globe-europe-africa text-primary"></i>
+            <div><div class="nav-dropdown-item-title">Delegacja</div><div class="nav-dropdown-item-sub">Rozliczenia wyjazdów</div></div>
           </a>
         </div>
       </div>
@@ -121,16 +127,20 @@ $userInitial = strtoupper(substr($user['name'] ?? 'U', 0, 1));
           <i class="bi bi-chevron-down nav-caret"></i>
         </button>
         <div class="nav-dropdown-menu">
+          <div class="nav-dropdown-section-label">Panel admin</div>
           <?php if ($user['role'] === 'superadmin'): ?>
           <a class="nav-dropdown-item <?= $isActive('/companies') ?>" href="/companies">
-            <i class="bi bi-building-fill"></i> Firmy
+            <i class="bi bi-building-fill text-secondary"></i>
+            <div><div class="nav-dropdown-item-title">Firmy</div><div class="nav-dropdown-item-sub">Zarządzaj firmami</div></div>
           </a>
           <a class="nav-dropdown-item <?= $isActive('/admin/licenses') ?>" href="/admin/licenses">
-            <i class="bi bi-key-fill"></i> Licencje
+            <i class="bi bi-patch-check-fill text-success"></i>
+            <div><div class="nav-dropdown-item-title">Aktywacja</div><div class="nav-dropdown-item-sub">Licencje firm</div></div>
           </a>
           <?php endif; ?>
           <a class="nav-dropdown-item <?= $isActive('/admin/users') ?>" href="/admin/users">
-            <i class="bi bi-people-fill"></i> Użytkownicy
+            <i class="bi bi-people-fill text-primary"></i>
+            <div><div class="nav-dropdown-item-title">Użytkownicy</div><div class="nav-dropdown-item-sub">Konta i uprawnienia</div></div>
           </a>
         </div>
       </div>
@@ -142,11 +152,16 @@ $userInitial = strtoupper(substr($user['name'] ?? 'U', 0, 1));
     <div class="navbar-right">
 
       <?php if ($companyName): ?>
-      <div class="navbar-company-badge">
-        <i class="bi bi-building opacity-50"></i>
+      <div class="navbar-company-badge d-none d-xl-flex">
+        <i class="bi bi-building-fill"></i>
         <span><?= htmlspecialchars($companyName) ?></span>
       </div>
       <?php endif; ?>
+
+      <div class="navbar-date d-none d-lg-flex">
+        <i class="bi bi-calendar3"></i>
+        <span><?= date('d.m.Y') ?></span>
+      </div>
 
       <!-- User dropdown -->
       <div class="nav-dropdown nav-dropdown-right">
@@ -166,10 +181,16 @@ $userInitial = strtoupper(substr($user['name'] ?? 'U', 0, 1));
           </div>
           <div class="nav-dropdown-divider"></div>
           <a class="nav-dropdown-item text-danger-hover" href="/logout">
-            <i class="bi bi-box-arrow-right text-danger"></i> Wyloguj się
+            <i class="bi bi-box-arrow-right text-danger"></i>
+            <div><div class="nav-dropdown-item-title">Wyloguj się</div></div>
           </a>
         </div>
       </div>
+
+      <!-- Mobile toggle -->
+      <button class="navbar-mobile-btn" id="navbarMobileToggle" aria-label="Menu" aria-expanded="false" aria-controls="navbarMenu">
+        <i class="bi bi-list"></i>
+      </button>
 
     </div><!-- /.navbar-right -->
   </div><!-- /.navbar-inner -->
