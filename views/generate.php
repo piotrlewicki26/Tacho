@@ -44,25 +44,23 @@ $v        = $input ?? [];        // form restore helper
             </div>
 
             <!-- Auto-generated per-license secret -->
-            <div class="alert alert-warning p-3 mb-3">
+            <div class="alert alert-success p-3 mb-3">
                 <div class="fw-bold mb-1">
-                    <i class="bi bi-key-fill me-1"></i>Sekret weryfikacji
-                    <span class="badge bg-danger ms-1">Zapisz i przekaż do systemu rozliczeń!</span>
+                    <i class="bi bi-key-fill me-1"></i>Sekret weryfikacji (z systemu TachoSystem)
                 </div>
                 <div class="input-group mb-1">
                     <input type="text" class="form-control font-monospace small"
                            id="generatedSecret"
                            value="<?= htmlspecialchars($license['used_secret']) ?>"
                            readonly>
-                    <button type="button" class="btn btn-warning" id="copySecretBtn"
-                            onclick="copyField('generatedSecret','copySecretBtn','btn-warning')">
+                    <button type="button" class="btn btn-success" id="copySecretBtn"
+                            onclick="copyField('generatedSecret','copySecretBtn','btn-success')">
                         <i class="bi bi-clipboard me-1"></i>Kopiuj
                     </button>
                 </div>
                 <div class="form-text text-dark">
                     <i class="bi bi-info-circle me-1"></i>
-                    Ten sekret jest unikalny dla tej licencji. Skonfiguruj go w systemie rozliczeń kierowców –
-                    bez niego system nie będzie mógł zweryfikować licencji offline.
+                    Licencja została wygenerowana przy użyciu sekretu skonfigurowanego w systemie TachoSystem dla tej firmy.
                     Sekret jest bezpiecznie przechowywany w bazie danych generatora.
                 </div>
             </div>
@@ -208,10 +206,27 @@ $v        = $input ?? [];        // form restore helper
                     </div>
                 </div>
 
-                <div class="alert alert-info py-2 px-3 small">
-                    <i class="bi bi-info-circle me-1"></i>
-                    Sekret HMAC dla tej licencji zostanie <strong>wygenerowany automatycznie</strong> i wyświetlony po kliknięciu „Generuj licencję".
-                    Przekaż go do systemu rozliczeń kierowców.
+                <hr class="my-3">
+                <h6 class="text-muted text-uppercase small fw-bold mb-3">Sekret TachoSystem</h6>
+                <div class="row g-3 mb-4">
+                    <div class="col-12">
+                        <label for="license_secret" class="form-label fw-semibold">
+                            Sekret licencji <span class="text-danger">*</span>
+                        </label>
+                        <input type="text" id="license_secret" name="license_secret"
+                               class="form-control font-monospace"
+                               placeholder="Wklej 64-znakowy sekret hex z ustawień firmy w systemie TachoSystem"
+                               value="<?= htmlspecialchars($v['licenseSecret'] ?? '') ?>"
+                               maxlength="64"
+                               pattern="[0-9a-fA-F]{64}"
+                               required>
+                        <div class="form-text">
+                            <i class="bi bi-info-circle me-1"></i>
+                            Skopiuj wartość pola <strong>Sekret licencji</strong> z ustawień firmy w systemie TachoSystem
+                            (64 znaki szesnastkowe). Klucz licencji zostanie wygenerowany przy użyciu tego sekretu,
+                            dzięki czemu TachoSystem będzie mógł weryfikować licencję offline bez dodatkowej konfiguracji.
+                        </div>
+                    </div>
                 </div>
 
                 <div class="d-flex gap-2 mt-3">

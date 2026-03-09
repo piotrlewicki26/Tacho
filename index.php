@@ -146,15 +146,16 @@ if ($path === '/generate' && $method === 'GET') {
 if ($path === '/generate' && $method === 'POST') {
     $errors = [];
 
-    $companyId     = trim((string)($_POST['company_id']      ?? ''));
-    $companyName   = trim((string)($_POST['company_name']    ?? ''));
-    $modules       = (array)($_POST['modules']               ?? ['all']);
-    $maxOperators  = (int)($_POST['max_operators']           ?? 5);
-    $maxDrivers    = (int)($_POST['max_drivers']             ?? 50);
-    $validFrom     = trim((string)($_POST['valid_from']      ?? date('Y-m-d')));
-    $validTo       = trim((string)($_POST['valid_to']        ?? date('Y-m-d', strtotime('+1 year'))));
-    $hardwareId    = trim((string)($_POST['hardware_id']     ?? ''));
-    $notes         = trim((string)($_POST['notes']           ?? ''));
+    $companyId      = trim((string)($_POST['company_id']       ?? ''));
+    $companyName    = trim((string)($_POST['company_name']     ?? ''));
+    $modules        = (array)($_POST['modules']                ?? ['all']);
+    $maxOperators   = (int)($_POST['max_operators']            ?? 5);
+    $maxDrivers     = (int)($_POST['max_drivers']              ?? 50);
+    $validFrom      = trim((string)($_POST['valid_from']       ?? date('Y-m-d')));
+    $validTo        = trim((string)($_POST['valid_to']         ?? date('Y-m-d', strtotime('+1 year'))));
+    $hardwareId     = trim((string)($_POST['hardware_id']      ?? ''));
+    $notes          = trim((string)($_POST['notes']            ?? ''));
+    $licenseSecret  = trim((string)($_POST['license_secret']   ?? ''));
 
     if ($companyId === '') {
         $errors[] = 'ID firmy jest wymagane.';
@@ -186,7 +187,14 @@ if ($path === '/generate' && $method === 'POST') {
         $errors[] = 'Data końca ważności nie może przekraczać 2064-11-08 (limit formatu klucza).';
     }
 
-    $input = compact('companyId', 'companyName', 'modules', 'maxOperators', 'maxDrivers', 'validFrom', 'validTo', 'hardwareId', 'notes');
+    // The secret must be provided from the TachoSystem (64 hex characters = 32 bytes).
+    if ($licenseSecret === '') {
+        $errors[] = 'Sekret licencji jest wymagany. Skopiuj go z ustawień firmy w systemie TachoSystem.';
+    } elseif (!preg_match('/^[0-9a-fA-F]{64}$/', $licenseSecret)) {
+        $errors[] = 'Sekret licencji musi mieć dokładnie 64 znaki szesnastkowe (litery a-f i cyfry 0-9).';
+    }
+
+    $input = compact('companyId', 'companyName', 'modules', 'maxOperators', 'maxDrivers', 'validFrom', 'validTo', 'hardwareId', 'notes', 'licenseSecret');
 
     if (!empty($errors)) {
         renderView('generate', compact('errors', 'input'));
@@ -205,8 +213,8 @@ if ($path === '/generate' && $method === 'POST') {
     ];
 
     try {
-        // No secret passed — LicenseManager auto-generates a unique per-license secret.
-        $license = $licenseManager->generate($licenseData, $auth->userId());
+        // Use the secret provided from the TachoSystem for this company.
+        $license = $licenseManager->generate($licenseData, $auth->userId(), $licenseSecret);
     } catch (\Throwable $e) {
         $errors[] = 'Błąd generowania licencji: ' . $e->getMessage();
         renderView('generate', compact('errors', 'input'));
