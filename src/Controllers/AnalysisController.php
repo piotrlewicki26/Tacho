@@ -15,7 +15,7 @@ class AnalysisController
     public function index(array $params): void
     {
         Auth::requireAuth();
-        $cid = Auth::companyId();
+        $cid = Auth::effectiveCompanyId();
         if (!Auth::isSuperAdmin() && !License::isModuleAllowed($cid ?? 0, 'analysis')) {
             Auth::setFlash('error', 'Brak licencji na moduł analizy.');
             header('Location: /'); exit;
@@ -35,9 +35,9 @@ class AnalysisController
         Auth::requireRole('admin', 'superadmin');
         if (!Auth::validateCsrf()) { header('Location: /analysis'); exit; }
 
-        $cid = Auth::companyId();
+        $cid = Auth::effectiveCompanyId();
         if (!$cid) {
-            Auth::setFlash('error', 'Konto superadmin nie ma przypisanej firmy. Użyj konta firmowego do wgrania pliku DDD.');
+            Auth::setFlash('error', 'Brak kontekstu firmy. Użyj konta firmowego lub wybierz firmę z panelu administratora.');
             header('Location: /analysis'); exit;
         }
 
@@ -328,7 +328,7 @@ class AnalysisController
 
     private function findFileOr404(int $id): array
     {
-        $f = (new TachoFile())->find($id, Auth::companyId() ?? 0);
+        $f = (new TachoFile())->find($id, Auth::effectiveCompanyId() ?? 0);
         if (!$f) { http_response_code(404); exit('Plik nie znaleziony.'); }
         return $f;
     }
