@@ -278,13 +278,13 @@ class DDDParser
 
     private function codeToType(int $code): string
     {
-        return match ($code) {
-            0 => 'work',
-            1 => 'availability',
-            2 => 'rest',
-            3 => 'driving',
-            default => 'work',
-        };
+        switch ($code) {
+            case 0: return 'work';
+            case 1: return 'availability';
+            case 2: return 'rest';
+            case 3: return 'driving';
+            default: return 'work';
+        }
     }
 
     private function readUint16(int $offset): int

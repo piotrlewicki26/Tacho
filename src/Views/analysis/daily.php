@@ -156,7 +156,7 @@ $actLabels = [
             </td>
             <td>
               <span class="badge bg-<?= $v['severity'] === 'critical' ? 'danger' : ($v['severity'] === 'major' ? 'warning text-dark' : 'secondary') ?>">
-                <?= match($v['severity']) { 'critical' => 'KRYTYCZNE', 'major' => 'POWAŻNE', default => 'DROBNE' } ?>
+                <?= $v['severity'] === 'critical' ? 'KRYTYCZNE' : ($v['severity'] === 'major' ? 'POWAŻNE' : 'DROBNE') ?>
               </span>
             </td>
           </tr>

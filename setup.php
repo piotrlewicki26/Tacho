@@ -98,7 +98,7 @@ if ($step === 5 && isset($_POST['finalize'])) {
     // Write an env template
     if ($cfg) {
         $envContent = "APP_URL=http://localhost\nAPP_DEBUG=false\nDB_HOST={$cfg['dbHost']}\nDB_PORT={$cfg['dbPort']}\nDB_NAME={$cfg['dbName']}\nDB_USER={$cfg['dbUser']}\nDB_PASS={$cfg['dbPass']}\nLICENSE_SECRET={$secret}\n";
-        file_put_contents(__DIR__ . '/.env.example', $envContent);
+        file_put_contents(__DIR__ . '/.env', $envContent);
     }
 
     $info[]  = 'Instalacja zakończona!';
@@ -225,7 +225,7 @@ render:
   <div class="text-center py-3">
     <div class="fs-1 mb-3">🎉</div>
     <h5 class="text-success">Instalacja zakończona!</h5>
-    <p class="text-muted">Plik konfiguracyjny <code>.env.example</code> został wygenerowany.<br>Zmień jego nazwę na <code>.env</code> i ustaw zmienne środowiskowe.</p>
+    <p class="text-muted">Plik konfiguracyjny <code>.env</code> został wygenerowany automatycznie z danymi podanymi podczas instalacji.</p>
     <a href="/login" class="btn btn-primary mt-2">Przejdź do logowania</a>
   </div>
   <?php endif; ?>
