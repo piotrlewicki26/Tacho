@@ -97,5 +97,21 @@ class Database
             CREATE INDEX IF NOT EXISTS idx_licenses_valid_to    ON licenses (valid_to);
             CREATE INDEX IF NOT EXISTS idx_licenses_is_active   ON licenses (is_active);
         ");
+
+        // Migration: add used_secret column if it doesn't already exist.
+        // Check via PRAGMA table_info to avoid relying on locale-specific error messages.
+        $columns = $this->pdo->query("PRAGMA table_info(licenses)")->fetchAll(PDO::FETCH_ASSOC);
+        $hasUsedSecret = false;
+        foreach ($columns as $col) {
+            if ($col['name'] === 'used_secret') {
+                $hasUsedSecret = true;
+                break;
+            }
+        }
+        if (!$hasUsedSecret) {
+            $this->pdo->exec(
+                "ALTER TABLE licenses ADD COLUMN used_secret TEXT NOT NULL DEFAULT ''"
+            );
+        }
     }
 }

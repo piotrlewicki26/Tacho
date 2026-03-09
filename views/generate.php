@@ -178,6 +178,31 @@ $v        = $input ?? [];        // form restore helper
                         <textarea id="notes" name="notes" class="form-control" rows="2"
                                   placeholder="Uwagi wewnętrzne..."><?= htmlspecialchars($v['notes'] ?? '') ?></textarea>
                     </div>
+                    <div class="col-12">
+                        <label for="license_secret" class="form-label fw-semibold">
+                            Sekret licencji (LICENSE_SECRET)
+                            <span class="badge bg-warning text-dark ms-1">Wymagany</span>
+                        </label>
+                        <div class="input-group">
+                            <input type="password" id="license_secret" name="license_secret"
+                                   class="form-control font-monospace"
+                                   placeholder="Minimum 32 znaków"
+                                   value="<?= htmlspecialchars($v['licenseSecret'] ?? LICENSE_SECRET) ?>"
+                                   required minlength="32"
+                                   autocomplete="off">
+                            <button type="button" class="btn btn-outline-secondary"
+                                    title="Pokaż / ukryj sekret"
+                                    onclick="toggleSecret()">
+                                <i class="bi bi-eye" id="secretEyeIcon"></i>
+                            </button>
+                        </div>
+                        <div class="form-text">
+                            Sekret HMAC-SHA256 używany do podpisania tej licencji.
+                            Musi być <strong>identyczny</strong> z wartością <code>LICENSE_SECRET</code>
+                            skonfigurowaną w docelowym systemie TachoSystem.
+                            Domyślnie używany jest sekret z pliku <code>.env</code>.
+                        </div>
+                    </div>
                 </div>
 
                 <div class="d-flex gap-2">
@@ -189,4 +214,18 @@ $v        = $input ?? [];        // form restore helper
             </form>
         </div>
     </div>
+
+    <script>
+    function toggleSecret() {
+        const secretInput = document.getElementById('license_secret');
+        const icon = document.getElementById('secretEyeIcon');
+        if (secretInput.type === 'password') {
+            secretInput.type = 'text';
+            icon.className = 'bi bi-eye-slash';
+        } else {
+            secretInput.type = 'password';
+            icon.className = 'bi bi-eye';
+        }
+    }
+    </script>
 <?php endif; ?>

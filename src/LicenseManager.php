@@ -48,11 +48,13 @@ class LicenseManager
      *     hardware_id:    string,
      *     notes:          string,
      * } $data
-     * @throws \RuntimeException when LICENSE_SECRET is not configured.
+     * @param string $secret  The HMAC secret to use. Defaults to LICENSE_SECRET constant.
+     * @throws \RuntimeException when no usable secret is available.
      */
-    public function generate(array $data, ?int $userId = null): array
+    public function generate(array $data, ?int $userId = null, string $secret = ''): array
     {
-        $this->assertSecret();
+        $secret = ($secret === '') ? LICENSE_SECRET : $secret;
+        $this->assertSecret($secret);
 
         $licenseKey = $this->randomKey();
         $modules    = $this->normaliseModules($data['modules'] ?? ['all']);
@@ -63,15 +65,16 @@ class LicenseManager
             (int)$data['max_operators'],
             (int)$data['max_drivers'],
             $data['valid_to'],
-            $data['hardware_id'] ?? ''
+            $data['hardware_id'] ?? '',
+            $secret
         );
 
         $stmt = $this->db->prepare(
             'INSERT INTO licenses
                 (company_id, company_name, license_key, sha256_hash, modules,
                  max_operators, max_drivers, valid_from, valid_to,
-                 hardware_id, is_active, notes, created_by)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)'
+                 hardware_id, is_active, notes, created_by, used_secret)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?)'
         );
         $stmt->execute([
             $data['company_id'],
@@ -86,6 +89,7 @@ class LicenseManager
             $data['hardware_id'] ?? '',
             $data['notes'] ?? '',
             $userId,
+            $secret,
         ]);
 
         return array_merge($data, [
@@ -94,6 +98,7 @@ class LicenseManager
             'sha256_hash' => $hash,
             'modules'     => $modules,
             'is_active'   => 1,
+            'used_secret' => $secret,
         ]);
     }
 
@@ -113,10 +118,6 @@ class LicenseManager
 
         if ($licenseKey === '' || $companyId === '') {
             return ['valid' => false, 'message' => 'Klucz licencji i ID firmy są wymagane.'];
-        }
-
-        if (LICENSE_SECRET === '') {
-            return ['valid' => false, 'message' => 'Brak skonfigurowanego sekretu (LICENSE_SECRET).'];
         }
 
         $stmt = $this->db->prepare(
@@ -141,6 +142,14 @@ class LicenseManager
             return ['valid' => false, 'message' => 'Licencja wygasła (' . $license['valid_to'] . ').', 'license' => $license];
         }
 
+        // Use the secret that was stored with this license; fall back to the
+        // configured LICENSE_SECRET for licenses created before this feature.
+        $secret = ($license['used_secret'] ?? '') ?: LICENSE_SECRET;
+
+        if ($secret === '') {
+            return ['valid' => false, 'message' => 'Brak skonfigurowanego sekretu (LICENSE_SECRET) – nie można zweryfikować podpisu.', 'license' => $license];
+        }
+
         $modules    = json_decode($license['modules'], true);
         $modulesStr = implode(',', $this->normaliseModules($modules));
 
@@ -151,7 +160,8 @@ class LicenseManager
             (int)$license['max_operators'],
             (int)$license['max_drivers'],
             $license['valid_to'],
-            $license['hardware_id']
+            $license['hardware_id'],
+            $secret
         );
 
         if (!hash_equals($license['sha256_hash'], $expected)) {
@@ -235,6 +245,8 @@ class LicenseManager
     /**
      * Compute the HMAC-SHA256 license hash.
      * The message is: company_id|key|modules|max_ops|max_drivers|valid_to|hardware_id
+     *
+     * @param string $secret  HMAC key. Defaults to the LICENSE_SECRET constant.
      */
     public function computeHash(
         string $companyId,
@@ -243,8 +255,10 @@ class LicenseManager
         int    $maxOperators,
         int    $maxDrivers,
         string $validTo,
-        string $hardwareId
+        string $hardwareId,
+        string $secret = ''
     ): string {
+        $secret  = ($secret === '') ? LICENSE_SECRET : $secret;
         $message = implode('|', [
             $companyId,
             $licenseKey,
@@ -254,7 +268,7 @@ class LicenseManager
             $validTo,
             $hardwareId,
         ]);
-        return hash_hmac('sha256', $message, LICENSE_SECRET);
+        return hash_hmac('sha256', $message, $secret);
     }
 
     /**
@@ -289,12 +303,12 @@ class LicenseManager
         );
     }
 
-    /** Throw when no secret is configured. */
-    private function assertSecret(): void
+    /** Throw when no secret is configured or provided. */
+    private function assertSecret(string $secret): void
     {
-        if (LICENSE_SECRET === '') {
+        if ($secret === '') {
             throw new \RuntimeException(
-                'LICENSE_SECRET nie jest skonfigurowany. Uruchom setup.php lub ustaw zmienną środowiskową.'
+                'LICENSE_SECRET nie jest skonfigurowany. Uruchom setup.php, ustaw zmienną środowiskową lub podaj sekret w formularzu.'
             );
         }
     }

@@ -61,6 +61,8 @@ $licenseManager = new LicenseManager($db);
  */
 function renderView(string $view, array $data = []): never
 {
+    global $auth;   // make the Auth instance available to layout.php
+
     extract($data, EXTR_SKIP);
 
     if ($view === 'login') {
@@ -144,15 +146,16 @@ if ($path === '/generate' && $method === 'GET') {
 if ($path === '/generate' && $method === 'POST') {
     $errors = [];
 
-    $companyId    = trim((string)($_POST['company_id']    ?? ''));
-    $companyName  = trim((string)($_POST['company_name']  ?? ''));
-    $modules      = (array)($_POST['modules']             ?? ['all']);
-    $maxOperators = (int)($_POST['max_operators']         ?? 5);
-    $maxDrivers   = (int)($_POST['max_drivers']           ?? 50);
-    $validFrom    = trim((string)($_POST['valid_from']    ?? date('Y-m-d')));
-    $validTo      = trim((string)($_POST['valid_to']      ?? date('Y-m-d', strtotime('+1 year'))));
-    $hardwareId   = trim((string)($_POST['hardware_id']   ?? ''));
-    $notes        = trim((string)($_POST['notes']         ?? ''));
+    $companyId     = trim((string)($_POST['company_id']      ?? ''));
+    $companyName   = trim((string)($_POST['company_name']    ?? ''));
+    $modules       = (array)($_POST['modules']               ?? ['all']);
+    $maxOperators  = (int)($_POST['max_operators']           ?? 5);
+    $maxDrivers    = (int)($_POST['max_drivers']             ?? 50);
+    $validFrom     = trim((string)($_POST['valid_from']      ?? date('Y-m-d')));
+    $validTo       = trim((string)($_POST['valid_to']        ?? date('Y-m-d', strtotime('+1 year'))));
+    $hardwareId    = trim((string)($_POST['hardware_id']     ?? ''));
+    $notes         = trim((string)($_POST['notes']           ?? ''));
+    $licenseSecret = trim((string)($_POST['license_secret']  ?? LICENSE_SECRET));
 
     if ($companyId === '') {
         $errors[] = 'ID firmy jest wymagane.';
@@ -176,20 +179,15 @@ if ($path === '/generate' && $method === 'POST') {
         $errors[] = 'Liczba kierowców musi być w zakresie 1–99999.';
     }
 
-    $today = date('Y-m-d');
-    if ($validFrom === '' || $validFrom < $today) {
-        // allow past valid_from for back-dating but warn
-    }
-
     if ($validTo === '' || $validTo <= $validFrom) {
         $errors[] = 'Data końca ważności musi być późniejsza niż data początku.';
     }
 
-    if (LICENSE_SECRET === '') {
-        $errors[] = 'Brak skonfigurowanego sekretu (LICENSE_SECRET). Uzupełnij plik .env.';
+    if (strlen($licenseSecret) < 32) {
+        $errors[] = 'Sekret licencji musi mieć co najmniej 32 znaki. Sprawdź ustawienia lub podaj własny sekret.';
     }
 
-    $input = compact('companyId', 'companyName', 'modules', 'maxOperators', 'maxDrivers', 'validFrom', 'validTo', 'hardwareId', 'notes');
+    $input = compact('companyId', 'companyName', 'modules', 'maxOperators', 'maxDrivers', 'validFrom', 'validTo', 'hardwareId', 'notes', 'licenseSecret');
 
     if (!empty($errors)) {
         renderView('generate', compact('errors', 'input'));
@@ -207,7 +205,13 @@ if ($path === '/generate' && $method === 'POST') {
         'notes'         => $notes,
     ];
 
-    $license = $licenseManager->generate($licenseData, $auth->userId());
+    try {
+        $license = $licenseManager->generate($licenseData, $auth->userId(), $licenseSecret);
+    } catch (\Throwable $e) {
+        $errors[] = 'Błąd generowania licencji: ' . $e->getMessage();
+        renderView('generate', compact('errors', 'input'));
+    }
+
     renderView('generate', compact('license'));
 }
 
