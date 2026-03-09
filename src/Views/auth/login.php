@@ -1,7 +1,3 @@
-<?php
-$content = ob_get_clean();
-require __DIR__ . '/../layouts/auth.php';
-?>
 <?php ob_start(); ?>
 <form method="POST" action="/login" novalidate>
   <input type="hidden" name="_token" value="<?= \Core\Auth::csrfToken() ?>">

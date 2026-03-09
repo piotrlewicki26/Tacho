@@ -1,0 +1,13 @@
+RewriteEngine On
+
+# If the request already has a real file in public/ serve it directly
+RewriteCond %{REQUEST_URI} ^/public/
+RewriteRule ^ - [L]
+
+# Route all requests to public/index.php
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteRule ^(.*)$ public/index.php [QSA,L]
+
+# Redirect bare "/" to the app as well
+RewriteRule ^$ public/index.php [QSA,L]
