@@ -23,10 +23,11 @@
    - Krok 2: Konfiguracja bazy danych
    - Krok 3: Tworzenie tabel
    - Krok 4: Konto superadmin
-   - Krok 5: Finalizacja
-3. Utwórz plik `.env` z wygenerowanego `.env.example`
-4. Zaloguj się pod `/login`
-5. Dodaj firmę (`/companies`) i wygeneruj licencję (`/admin/licenses`)
+   - Krok 5: Finalizacja (plik `.env` generowany automatycznie)
+3. Zaloguj się pod `/login`
+4. Dodaj firmę (`/companies`) — **sekret licencji jest generowany automatycznie** dla każdej firmy w chwili jej utworzenia
+5. W panelu `/admin/licenses` skopiuj sekret firmy i skonfiguruj go w systemie rozliczania kierowców — bez niego system nie będzie mógł weryfikować licencji offline
+6. Aktywuj licencję (`/admin/licenses` → Aktywuj licencję)
 
 ---
 
@@ -124,7 +125,9 @@ DB_HOST=localhost
 DB_NAME=tacho_system
 DB_USER=tacho_user
 DB_PASS=silne_haslo
-LICENSE_SECRET=wygenerowany_podczas_instalacji_32_znaki
+# Opcjonalny URL zewnętrznego serwera weryfikacji licencji (raz na dobę).
+# Pozostaw pusty, aby polegać wyłącznie na weryfikacji lokalnej (SHA-256).
+LICENSE_VERIFY_URL=
 ```
 
 ---

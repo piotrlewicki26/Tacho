@@ -56,6 +56,12 @@
                 <i class="bi bi-clipboard"></i>
               </button>
             </div>
+            <div class="text-muted mt-1 secret-info">
+              <i class="bi bi-info-circle me-1"></i>Ten sekret jest unikalny dla tej licencji.
+              Skonfiguruj go w swoim systemie rozliczania kierowców — bez niego system nie będzie
+              mógł weryfikować licencji offline. Sekret jest bezpiecznie przechowywany w bazie
+              generatora i nie może być ponownie wprowadzony.
+            </div>
             <?php else: ?>
             <span class="text-muted small fst-italic">Brak sekretu</span>
             <?php endif; ?>
@@ -252,6 +258,7 @@
 <style>
 .btn-xs { padding: .2rem .55rem; font-size: .75rem; border-radius: 5px; }
 .secret-display { background: rgba(255,255,255,.04); border-radius: 4px; padding: 2px 6px; letter-spacing: .05em; }
+.secret-info { font-size: .70rem; line-height: 1.35; max-width: 280px; }
 </style>
 
 <script>
