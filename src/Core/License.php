@@ -7,7 +7,7 @@ namespace Core;
  *
  * License key format: TACHO-XXXX-XXXX-XXXX-XXXX
  * The SHA-256 hash binds: company_id + key + modules + max_operators +
- *   max_drivers + valid_to + hardware_id + LICENSE_SECRET_KEY
+ *   max_drivers + valid_to + hardware_id + per-company license_secret
  */
 class License
 {
@@ -15,6 +15,26 @@ class License
     private const PARTS    = 4;
     private const PARTLEN  = 4;
     private const ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+
+    // ── Secret management ──────────────────────────────────────────────────
+
+    /** Generate a cryptographically random 48-character secret. */
+    public static function generateSecret(): string
+    {
+        return bin2hex(random_bytes(24)); // 48 hex chars
+    }
+
+    /** Return the per-company secret; falls back to global constant. */
+    public static function companySecret(int $companyId): string
+    {
+        $row = Database::fetchOne(
+            'SELECT license_secret FROM companies WHERE id = :id LIMIT 1',
+            ['id' => $companyId]
+        );
+        return ($row && $row['license_secret'] !== null && $row['license_secret'] !== '')
+            ? $row['license_secret']
+            : LICENSE_SECRET_KEY;
+    }
 
     // ── Generation ─────────────────────────────────────────────────────────
 
@@ -27,11 +47,44 @@ class License
         string  $validTo,
         ?string $hardwareId = null
     ): array {
-        $key  = self::randomKey();
-        $hash = self::computeHash($companyId, $key, $modules, $maxOperators, $maxDrivers, $validTo, $hardwareId);
+        $key    = self::randomKey();
+        $secret = self::companySecret($companyId);
+        $hash   = self::computeHash($companyId, $key, $modules, $maxOperators, $maxDrivers, $validTo, $hardwareId, $secret);
 
         return [
             'license_key'   => $key,
+            'sha256_hash'   => $hash,
+            'modules'       => json_encode($modules),
+            'max_operators' => $maxOperators,
+            'max_drivers'   => $maxDrivers,
+            'valid_from'    => $validFrom,
+            'valid_to'      => $validTo,
+            'hardware_id'   => $hardwareId,
+            'is_active'     => 1,
+        ];
+    }
+
+    // ── Activation ─────────────────────────────────────────────────────────
+
+    /**
+     * Build and return the license record from externally-supplied parameters.
+     * The hash is computed using the company's own secret, binding key + params.
+     */
+    public static function buildFromKey(
+        int     $companyId,
+        string  $licenseKey,
+        array   $modules,
+        int     $maxOperators,
+        int     $maxDrivers,
+        string  $validFrom,
+        string  $validTo,
+        ?string $hardwareId = null
+    ): array {
+        $secret = self::companySecret($companyId);
+        $hash   = self::computeHash($companyId, $licenseKey, $modules, $maxOperators, $maxDrivers, $validTo, $hardwareId, $secret);
+
+        return [
+            'license_key'   => $licenseKey,
             'sha256_hash'   => $hash,
             'modules'       => json_encode($modules),
             'max_operators' => $maxOperators,
@@ -58,10 +111,11 @@ class License
         if (!$lic) return false;
 
         $modules = json_decode($lic['modules'] ?? '[]', true) ?: [];
+        $secret  = self::companySecret($companyId);
         $expected = self::computeHash(
             $companyId, $licenseKey, $modules,
             (int) $lic['max_operators'], (int) $lic['max_drivers'],
-            $lic['valid_to'], $lic['hardware_id']
+            $lic['valid_to'], $lic['hardware_id'], $secret
         );
         return hash_equals($expected, $lic['sha256_hash']);
     }
@@ -113,13 +167,14 @@ class License
 
     private static function computeHash(
         int $companyId, string $key, array $modules,
-        int $maxOps, int $maxDrv, string $validTo, ?string $hwId
+        int $maxOps, int $maxDrv, string $validTo, ?string $hwId,
+        string $secret
     ): string {
         sort($modules);
         $payload = implode('|', [
             $companyId, $key, implode(',', $modules),
             $maxOps, $maxDrv, $validTo, $hwId ?? '',
-            LICENSE_SECRET_KEY,
+            $secret,
         ]);
         return hash('sha256', $payload);
     }

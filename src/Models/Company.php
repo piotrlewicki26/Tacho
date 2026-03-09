@@ -37,7 +37,7 @@ class Company
 
     private function sanitize(array $d): array
     {
-        $allowed = ['name','nip','address','city','country','phone','email','logo'];
+        $allowed = ['name','nip','address','city','country','phone','email','logo','license_secret'];
         return array_intersect_key($d, array_flip($allowed));
     }
 }

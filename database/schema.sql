@@ -6,20 +6,24 @@ SET NAMES utf8mb4;
 SET FOREIGN_KEY_CHECKS = 0;
 
 CREATE TABLE IF NOT EXISTS `companies` (
-  `id`         INT UNSIGNED     NOT NULL AUTO_INCREMENT,
-  `name`       VARCHAR(255)     NOT NULL,
-  `nip`        VARCHAR(20)      DEFAULT NULL,
-  `address`    VARCHAR(255)     DEFAULT NULL,
-  `city`       VARCHAR(100)     DEFAULT NULL,
-  `country`    VARCHAR(100)     DEFAULT 'Poland',
-  `phone`      VARCHAR(50)      DEFAULT NULL,
-  `email`      VARCHAR(255)     DEFAULT NULL,
-  `logo`       VARCHAR(255)     DEFAULT NULL,
-  `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `id`             INT UNSIGNED     NOT NULL AUTO_INCREMENT,
+  `name`           VARCHAR(255)     NOT NULL,
+  `nip`            VARCHAR(20)      DEFAULT NULL,
+  `address`        VARCHAR(255)     DEFAULT NULL,
+  `city`           VARCHAR(100)     DEFAULT NULL,
+  `country`        VARCHAR(100)     DEFAULT 'Poland',
+  `phone`          VARCHAR(50)      DEFAULT NULL,
+  `email`          VARCHAR(255)     DEFAULT NULL,
+  `logo`           VARCHAR(255)     DEFAULT NULL,
+  `license_secret` VARCHAR(64)      DEFAULT NULL COMMENT 'Per-company HMAC secret for license key verification',
+  `created_at`     DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at`     DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
   UNIQUE KEY `uq_nip` (`nip`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Migration helper (run once on existing installs):
+-- ALTER TABLE `companies` ADD COLUMN `license_secret` VARCHAR(64) DEFAULT NULL COMMENT 'Per-company HMAC secret for license key verification';
 
 CREATE TABLE IF NOT EXISTS `licenses` (
   `id`            INT UNSIGNED  NOT NULL AUTO_INCREMENT,

@@ -104,8 +104,9 @@ $router->post('/companies/{id}',         'CompanyController@update', ['auth']);
 $router->post('/companies/{id}/delete',  'CompanyController@delete', ['auth']);
 
 // Admin – Licenses
-$router->get('/admin/licenses',           'CompanyController@licenses',        ['auth']);
-$router->post('/admin/licenses/generate', 'CompanyController@generateLicense', ['auth']);
+$router->get('/admin/licenses',                          'CompanyController@licenses',             ['auth']);
+$router->post('/admin/licenses/{id}/generate-secret',   'CompanyController@generateCompanySecret', ['auth']);
+$router->post('/admin/licenses/{id}/activate',          'CompanyController@activateLicense',       ['auth']);
 
 // Admin – Users
 $router->get('/admin/users',        'CompanyController@users',        ['auth']);

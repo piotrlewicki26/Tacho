@@ -95,6 +95,11 @@ class CompanyController
     {
         Auth::requireRole('superadmin');
         $companies = $this->model->all();
+        // Enrich each company with its active license summary
+        foreach ($companies as &$c) {
+            $c['active_license'] = License::getActive((int)$c['id']);
+        }
+        unset($c);
         $licenses  = Database::fetchAll(
             'SELECT l.*, c.name AS company_name
              FROM licenses l JOIN companies c ON c.id=l.company_id
@@ -106,30 +111,61 @@ class CompanyController
         require __DIR__ . '/../Views/layouts/main.php';
     }
 
-    public function generateLicense(array $params): void
+    public function generateCompanySecret(array $params): void
     {
         Auth::requireRole('superadmin');
         if (!Auth::validateCsrf()) { header('Location: /admin/licenses'); exit; }
 
-        $companyId    = (int)($_POST['company_id']    ?? 0);
-        $modules      = $_POST['modules']             ?? [];
-        $maxOperators = (int)($_POST['max_operators'] ?? 5);
-        $maxDrivers   = (int)($_POST['max_drivers']   ?? 50);
-        $validFrom    = $_POST['valid_from']           ?? date('Y-m-d');
-        $validTo      = $_POST['valid_to']             ?? date('Y-m-d', strtotime('+1 year'));
-        $hardwareId   = trim($_POST['hardware_id']     ?? '') ?: null;
+        $companyId = (int)$params['id'];
+        $company   = $this->findOr404($companyId);
 
-        if (!$companyId || empty($modules)) {
-            Auth::setFlash('error', 'Wybierz firmę i co najmniej jeden moduł.');
+        $secret = License::generateSecret();
+        $this->model->update($companyId, ['license_secret' => $secret]);
+
+        Auth::log('license_secret_generated', "Nowy sekret dla firmy ID $companyId");
+        Auth::setFlash('success', 'Nowy klucz SECRET wygenerowany dla: ' . $company['name']);
+        header('Location: /admin/licenses'); exit;
+    }
+
+    public function activateLicense(array $params): void
+    {
+        Auth::requireRole('superadmin');
+        if (!Auth::validateCsrf()) { header('Location: /admin/licenses'); exit; }
+
+        $companyId    = (int)$params['id'];
+        $company      = $this->findOr404($companyId);
+
+        $licenseKey   = strtoupper(trim($_POST['license_key']    ?? ''));
+        $modules      = $_POST['modules']                         ?? [];
+        $maxOperators = (int)($_POST['max_operators']             ?? 5);
+        $maxDrivers   = (int)($_POST['max_drivers']               ?? 50);
+        $validFrom    = $_POST['valid_from']                      ?? date('Y-m-d');
+        $validTo      = $_POST['valid_to']                        ?? date('Y-m-d', strtotime('+1 year'));
+        $hardwareId   = trim($_POST['hardware_id']                ?? '') ?: null;
+
+        if (strlen($licenseKey) > 25 || !$licenseKey || empty($modules)) {
+            Auth::setFlash('error', 'Klucz licencji i co najmniej jeden moduł są wymagane.');
             header('Location: /admin/licenses'); exit;
         }
 
-        $data = License::generate($companyId, $modules, $maxOperators, $maxDrivers, $validFrom, $validTo, $hardwareId);
+        // Verify key format
+        if (!preg_match('/^TACHO(-[A-Z0-9]{4}){4}$/', $licenseKey)) {
+            Auth::setFlash('error', 'Nieprawidłowy format klucza licencji (oczekiwano: TACHO-XXXX-XXXX-XXXX-XXXX).');
+            header('Location: /admin/licenses'); exit;
+        }
+
+        // Deactivate any existing licenses for this company
+        Database::update(
+            'licenses', ['is_active' => 0],
+            'company_id = :cid', ['cid' => $companyId]
+        );
+
+        $data               = License::buildFromKey($companyId, $licenseKey, $modules, $maxOperators, $maxDrivers, $validFrom, $validTo, $hardwareId);
         $data['company_id'] = $companyId;
         Database::insert('licenses', $data);
 
-        Auth::log('license_generated', "Licencja dla firmy $companyId: {$data['license_key']}");
-        Auth::setFlash('success', 'Licencja wygenerowana: ' . $data['license_key']);
+        Auth::log('license_activated', "Licencja aktywowana dla firmy $companyId: $licenseKey");
+        Auth::setFlash('success', 'Licencja aktywowana dla firmy: ' . $company['name']);
         header('Location: /admin/licenses'); exit;
     }
 
