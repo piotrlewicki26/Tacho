@@ -46,8 +46,17 @@ class AnalysisController
             header('Location: /'); exit;
         }
 
-        if (empty($_FILES['ddd_file']['tmp_name'])) {
-            Auth::setFlash('error', 'Nie wybrano pliku.');
+        if (empty($_FILES['ddd_file']['tmp_name']) || $_FILES['ddd_file']['error'] !== UPLOAD_ERR_OK) {
+            $uploadErrors = [
+                UPLOAD_ERR_INI_SIZE   => 'Plik przekracza limit rozmiaru serwera.',
+                UPLOAD_ERR_FORM_SIZE  => 'Plik jest zbyt duży.',
+                UPLOAD_ERR_PARTIAL    => 'Plik wgrany tylko częściowo.',
+                UPLOAD_ERR_NO_FILE    => 'Nie wybrano pliku.',
+                UPLOAD_ERR_NO_TMP_DIR => 'Brak katalogu tymczasowego.',
+                UPLOAD_ERR_CANT_WRITE => 'Nie można zapisać pliku na dysku.',
+            ];
+            $errCode = $_FILES['ddd_file']['error'] ?? UPLOAD_ERR_NO_FILE;
+            Auth::setFlash('error', $uploadErrors[$errCode] ?? 'Błąd przesyłania pliku (kod: ' . $errCode . ').');
             header('Location: /analysis'); exit;
         }
 
@@ -77,13 +86,17 @@ class AnalysisController
             }
         }
 
-        // Store file
-        if (!is_dir(UPLOAD_PATH)) mkdir(UPLOAD_PATH, 0755, true);
+        // Ensure upload directory exists
+        if (!is_dir(UPLOAD_PATH) && !mkdir(UPLOAD_PATH, 0755, true) && !is_dir(UPLOAD_PATH)) {
+            Auth::setFlash('error', 'Nie można utworzyć katalogu uploads. Sprawdź uprawnienia serwera.');
+            header('Location: /analysis'); exit;
+        }
+
         $storedName = uniqid('ddd_', true) . '.bin';
         $destPath   = UPLOAD_PATH . $storedName;
 
         if (!move_uploaded_file($file['tmp_name'], $destPath)) {
-            Auth::setFlash('error', 'Błąd przy zapisie pliku.');
+            Auth::setFlash('error', 'Błąd przy zapisie pliku. Sprawdź uprawnienia katalogu uploads.');
             header('Location: /analysis'); exit;
         }
 
@@ -104,10 +117,80 @@ class AnalysisController
         ]);
 
         // Parse
+        $autoMessages = [];
         try {
             $binary = file_get_contents($destPath);
             $parser = new DDDParser($binary);
             $result = $parser->parse();
+
+            // ── Auto-create driver from parsed data ────────────────────────
+            if (!$driverId && !empty($result['driver'])) {
+                $drvInfo = $result['driver'];
+                $cardNo  = $this->cleanString($drvInfo['card_number'] ?? '');
+                $surname = $this->cleanString($drvInfo['surname'] ?? '');
+                $fname   = $this->cleanString($drvInfo['first_name'] ?? '');
+
+                // Try to match existing driver by card number
+                if ($cardNo) {
+                    $existing = \Core\Database::fetchOne(
+                        'SELECT id FROM drivers WHERE company_id=:cid AND card_number=:cn AND is_active=1 LIMIT 1',
+                        ['cid' => $cid, 'cn' => $cardNo]
+                    );
+                    if ($existing) {
+                        $driverId = (int)$existing['id'];
+                    }
+                }
+
+                // Create new driver if not found and we have a name
+                if (!$driverId && ($surname || $fname)) {
+                    if (License::checkDriverLimit($cid)) {
+                        $driverModel = new Driver();
+                        $driverId    = $driverModel->create($cid, [
+                            'first_name'  => $fname  ?: 'Nieznany',
+                            'last_name'   => $surname ?: 'Kierowca',
+                            'card_number' => $cardNo  ?: null,
+                            'nationality' => $this->cleanString($drvInfo['nationality'] ?? 'PL') ?: 'PL',
+                        ]);
+                        $autoMessages[] = "Automatycznie dodano kierowcę: $fname $surname";
+                        Auth::log('driver_auto_created', "Kierowca z pliku DDD ID $fileId, ID kierowcy: $driverId");
+                    } else {
+                        // Limit reached – flag it clearly so it surfaces to the user
+                        $autoMessages[] = '⚠ Limit kierowców wyczerpany – kierowca z pliku DDD nie został dodany. Zaktualizuj licencję.';
+                    }
+                }
+
+                // Update the file record with the resolved driver
+                if ($driverId) {
+                    \Core\Database::update('tacho_files', ['driver_id' => $driverId], 'id=:id', ['id' => $fileId]);
+                }
+            }
+
+            // ── Auto-create vehicle from parsed data ───────────────────────
+            if (!$vehicleId && !empty($result['vehicle'])) {
+                $vehInfo = $result['vehicle'];
+                $reg     = $this->cleanString($vehInfo['registration'] ?? '');
+                $vin     = $this->cleanString($vehInfo['vin'] ?? '');
+
+                if ($reg) {
+                    $existingVeh = \Core\Database::fetchOne(
+                        'SELECT id FROM vehicles WHERE company_id=:cid AND registration=:r AND is_active=1 LIMIT 1',
+                        ['cid' => $cid, 'r' => $reg]
+                    );
+                    if ($existingVeh) {
+                        $vehicleId = (int)$existingVeh['id'];
+                    } else {
+                        $vehicleModel = new Vehicle();
+                        $vehicleId    = $vehicleModel->create($cid, [
+                            'registration' => $reg,
+                            'vin'          => $vin ?: null,
+                        ]);
+                        $autoMessages[] = "Automatycznie dodano pojazd: $reg";
+                        Auth::log('vehicle_auto_created', "Pojazd z pliku DDD ID $fileId, rejestracja: $reg");
+                    }
+
+                    \Core\Database::update('tacho_files', ['vehicle_id' => $vehicleId], 'id=:id', ['id' => $fileId]);
+                }
+            }
 
             $activityModel = new Activity();
             $activities    = [];
@@ -146,10 +229,11 @@ class AnalysisController
             $fileModel->updateStatus($fileId, 'success');
             Auth::log('file_parsed', "Plik DDD ID $fileId, rekordów: " . count($activities));
 
-            Auth::setFlash('success', sprintf(
-                'Plik wczytany. Znaleziono %d rekordów aktywności.',
-                count($activities)
-            ));
+            $msg = sprintf('Plik wczytany. Znaleziono %d rekordów aktywności.', count($activities));
+            if ($autoMessages) {
+                $msg .= ' ' . implode(' ', $autoMessages);
+            }
+            Auth::setFlash('success', $msg);
         } catch (\Throwable $e) {
             $fileModel->updateStatus($fileId, 'error', $e->getMessage());
             Auth::setFlash('error', 'Błąd parsowania: ' . $e->getMessage());
@@ -247,6 +331,18 @@ class AnalysisController
         $f = (new TachoFile())->find($id, Auth::companyId() ?? 0);
         if (!$f) { http_response_code(404); exit('Plik nie znaleziony.'); }
         return $f;
+    }
+
+    /**
+     * Strip non-printable and binary bytes from a string extracted from a DDD file,
+     * then trim surrounding whitespace.
+     *
+     * @param  string $s Raw string from binary DDD data
+     * @return string    Cleaned, trimmed string (may be empty)
+     */
+    private function cleanString(string $s): string
+    {
+        return trim(preg_replace('/[^\x20-\x7E\xC0-\xFF]/u', '', $s));
     }
 
     private function render(string $view, array $data = []): string

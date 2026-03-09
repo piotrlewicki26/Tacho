@@ -99,6 +99,25 @@ class Auth
         }
     }
 
+    /**
+     * For non-superadmin users: require an active license on their company.
+     * Redirect to /license-required if none found.
+     * Safe to call on every authenticated page.
+     */
+    public static function requireActiveLicense(): void
+    {
+        if (self::isSuperAdmin()) return;
+        $cid = self::companyId();
+        if (!$cid) return; // no company assigned – separate guard handles this
+        if (!\Core\License::getActive($cid)) {
+            $current = parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH);
+            // Allow the license-required page itself to render without redirect loop
+            if ($current === '/license-required') return;
+            header('Location: /license-required');
+            exit;
+        }
+    }
+
     public static function requireRole(string ...$roles): void
     {
         self::requireAuth();

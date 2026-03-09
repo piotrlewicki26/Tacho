@@ -81,6 +81,11 @@ $router->addMiddleware('auth', static function () {
     Core\Auth::requireAuth();
 });
 
+$router->addMiddleware('license', static function () {
+    Core\Auth::requireAuth();
+    Core\Auth::requireActiveLicense();
+});
+
 // ── Routes ─────────────────────────────────────────────────────────────────
 
 // Auth
@@ -88,35 +93,46 @@ $router->get('/login',  'AuthController@showLogin');
 $router->post('/login', 'AuthController@login');
 $router->get('/logout', 'AuthController@logout');
 
+// License required page (no license guard needed here to avoid redirect loops)
+$router->get('/license-required', static function (array $p) {
+    Core\Auth::requireAuth();
+    $pageTitle = 'Licencja wymagana';
+    $flash     = Core\Auth::getFlash();
+    ob_start();
+    require __DIR__ . '/../src/Views/license_required.php';
+    $content = ob_get_clean();
+    require __DIR__ . '/../src/Views/layouts/main.php';
+}, ['auth']);
+
 // Dashboard
-$router->get('/', 'DashboardController@index', ['auth']);
+$router->get('/', 'DashboardController@index', ['license']);
 
 // Drivers
-$router->get('/drivers',              'DriverController@index',  ['auth']);
-$router->get('/drivers/create',       'DriverController@create', ['auth']);
-$router->post('/drivers',             'DriverController@store',  ['auth']);
-$router->get('/drivers/{id}',         'DriverController@show',   ['auth']);
-$router->get('/drivers/{id}/edit',    'DriverController@edit',   ['auth']);
-$router->post('/drivers/{id}',        'DriverController@update', ['auth']);
-$router->post('/drivers/{id}/delete', 'DriverController@delete', ['auth']);
+$router->get('/drivers',              'DriverController@index',  ['license']);
+$router->get('/drivers/create',       'DriverController@create', ['license']);
+$router->post('/drivers',             'DriverController@store',  ['license']);
+$router->get('/drivers/{id}',         'DriverController@show',   ['license']);
+$router->get('/drivers/{id}/edit',    'DriverController@edit',   ['license']);
+$router->post('/drivers/{id}',        'DriverController@update', ['license']);
+$router->post('/drivers/{id}/delete', 'DriverController@delete', ['license']);
 
 // Vehicles
-$router->get('/vehicles',               'VehicleController@index',  ['auth']);
-$router->get('/vehicles/create',        'VehicleController@create', ['auth']);
-$router->post('/vehicles',              'VehicleController@store',  ['auth']);
-$router->get('/vehicles/{id}/edit',     'VehicleController@edit',   ['auth']);
-$router->post('/vehicles/{id}',         'VehicleController@update', ['auth']);
-$router->post('/vehicles/{id}/delete',  'VehicleController@delete', ['auth']);
+$router->get('/vehicles',               'VehicleController@index',  ['license']);
+$router->get('/vehicles/create',        'VehicleController@create', ['license']);
+$router->post('/vehicles',              'VehicleController@store',  ['license']);
+$router->get('/vehicles/{id}/edit',     'VehicleController@edit',   ['license']);
+$router->post('/vehicles/{id}',         'VehicleController@update', ['license']);
+$router->post('/vehicles/{id}/delete',  'VehicleController@delete', ['license']);
 
 // Analysis
-$router->get('/analysis',             'AnalysisController@index',  ['auth']);
-$router->post('/analysis/upload',     'AnalysisController@upload', ['auth']);
-$router->get('/analysis/{id}/daily',  'AnalysisController@daily',  ['auth']);
-$router->get('/analysis/{id}/weekly', 'AnalysisController@weekly', ['auth']);
+$router->get('/analysis',             'AnalysisController@index',  ['license']);
+$router->post('/analysis/upload',     'AnalysisController@upload', ['license']);
+$router->get('/analysis/{id}/daily',  'AnalysisController@daily',  ['license']);
+$router->get('/analysis/{id}/weekly', 'AnalysisController@weekly', ['license']);
 
 // Reports
-$router->get('/reports/vacation',   'ReportController@vacation',   ['auth']);
-$router->get('/reports/delegation', 'ReportController@delegation', ['auth']);
+$router->get('/reports/vacation',   'ReportController@vacation',   ['license']);
+$router->get('/reports/delegation', 'ReportController@delegation', ['license']);
 
 // Companies (superadmin)
 $router->get('/companies',               'CompanyController@index',  ['auth']);

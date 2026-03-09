@@ -73,6 +73,17 @@ class AuthController
             header('Location: /admin/users/create'); exit;
         }
 
+        // Enforce operator limit per license (for non-superadmin roles)
+        $targetCompanyId = $data['company_id'] ?? Auth::companyId();
+        if (
+            $targetCompanyId &&
+            in_array($data['role'], ['admin', 'operator'], true) &&
+            !\Core\License::checkOperatorLimit($targetCompanyId)
+        ) {
+            Auth::setFlash('error', 'Limit operatorów/administratorów wyczerpany. Zaktualizuj licencję.');
+            header('Location: /admin/users/create'); exit;
+        }
+
         (new User())->create($data);
         Auth::log('user_created', 'Utworzono użytkownika: ' . $data['email']);
         Auth::setFlash('success', 'Użytkownik utworzony pomyślnie.');

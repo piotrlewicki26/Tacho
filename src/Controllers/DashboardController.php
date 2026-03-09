@@ -4,6 +4,7 @@ namespace Controllers;
 
 use Core\Auth;
 use Core\Database;
+use Core\License;
 use Models\Activity;
 use Models\Driver;
 use Models\Vehicle;
@@ -14,6 +15,26 @@ class DashboardController
     {
         Auth::requireAuth();
         $companyId = Auth::companyId();
+
+        // License limits for display
+        $licenseInfo = null;
+        if ($companyId) {
+            $lic = License::getActive($companyId);
+            if ($lic) {
+                $usedDrivers   = (int) Database::fetchColumn('SELECT COUNT(*) FROM drivers WHERE company_id=:c AND is_active=1', ['c' => $companyId]);
+                $usedOperators = (int) Database::fetchColumn("SELECT COUNT(*) FROM users WHERE company_id=:c AND is_active=1 AND role IN ('admin','operator')", ['c' => $companyId]);
+                $maxDrivers    = (int)$lic['max_drivers'];
+                $licenseInfo = [
+                    'max_drivers'    => $maxDrivers,
+                    'used_drivers'   => $usedDrivers,
+                    'driver_pct'     => $maxDrivers > 0 ? (int)round($usedDrivers / $maxDrivers * 100) : 0,
+                    'max_operators'  => (int)$lic['max_operators'],
+                    'used_operators' => $usedOperators,
+                    'valid_to'       => $lic['valid_to'],
+                    'modules'        => json_decode($lic['modules'] ?? '[]', true) ?: [],
+                ];
+            }
+        }
 
         // KPI stats
         $stats = [
@@ -72,7 +93,7 @@ class DashboardController
 
         $pageTitle = 'Dashboard';
         $flash     = Auth::getFlash();
-        $content   = $this->render('dashboard/index', compact('stats','recentViolations','recentFiles','drivers','vehicles','chartData'));
+        $content   = $this->render('dashboard/index', compact('stats','recentViolations','recentFiles','drivers','vehicles','chartData','licenseInfo'));
         require __DIR__ . '/../Views/layouts/main.php';
     }
 

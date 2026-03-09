@@ -1,11 +1,12 @@
 <?php
 /**
- * @var array $stats
- * @var array $recentViolations
- * @var array $recentFiles
- * @var array $drivers
- * @var array $vehicles
- * @var array $chartData
+ * @var array      $stats
+ * @var array      $recentViolations
+ * @var array      $recentFiles
+ * @var array      $drivers
+ * @var array      $vehicles
+ * @var array      $chartData
+ * @var array|null $licenseInfo
  */
 ?>
 <div class="d-flex justify-content-between align-items-center mb-4">
@@ -13,6 +14,22 @@
     <h4 class="fw-bold mb-0">Dashboard</h4>
     <p class="text-muted mb-0 small"><?= date('l, d F Y') ?></p>
   </div>
+  <?php if ($licenseInfo): ?>
+  <div class="d-none d-md-flex gap-2 align-items-center">
+    <span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle">
+      <i class="bi bi-person-badge me-1"></i>
+      Kierowcy: <?= $licenseInfo['used_drivers'] ?> / <?= $licenseInfo['max_drivers'] ?>
+    </span>
+    <span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle">
+      <i class="bi bi-people me-1"></i>
+      Operatorzy: <?= $licenseInfo['used_operators'] ?> / <?= $licenseInfo['max_operators'] ?>
+    </span>
+    <span class="badge <?= strtotime($licenseInfo['valid_to']) < strtotime('+30 days') ? 'bg-warning-subtle text-warning border border-warning-subtle' : 'bg-success-subtle text-success border border-success-subtle' ?>">
+      <i class="bi bi-patch-check me-1"></i>
+      Licencja do: <?= date('d.m.Y', strtotime($licenseInfo['valid_to'])) ?>
+    </span>
+  </div>
+  <?php endif; ?>
 </div>
 
 <!-- KPI Cards -->
@@ -95,8 +112,22 @@
 <div class="row g-4">
   <div class="col-lg-6">
     <div class="card border-0" style="background:#1a1d27">
-      <div class="card-header border-0 bg-transparent d-flex justify-content-between">
-        <h6 class="fw-semibold mb-0">Kierowcy</h6>
+      <div class="card-header border-0 bg-transparent d-flex justify-content-between align-items-start">
+        <div>
+          <h6 class="fw-semibold mb-0">Kierowcy</h6>
+          <?php if ($licenseInfo): ?>
+          <div class="mt-1" style="min-width:120px">
+            <div class="d-flex justify-content-between" style="font-size:.7rem">
+              <span class="text-muted"><?= $licenseInfo['used_drivers'] ?> / <?= $licenseInfo['max_drivers'] ?> (limit)</span>
+              <span class="text-muted"><?= $licenseInfo['driver_pct'] ?>%</span>
+            </div>
+            <div class="progress" style="height:4px">
+              <div class="progress-bar bg-<?= $licenseInfo['driver_pct'] >= 100 ? 'danger' : ($licenseInfo['driver_pct'] >= 80 ? 'warning' : 'primary') ?>"
+                   style="width:<?= min($licenseInfo['driver_pct'], 100) ?>%"></div>
+            </div>
+          </div>
+          <?php endif; ?>
+        </div>
         <a href="/drivers" class="btn btn-sm btn-primary"><i class="bi bi-plus me-1"></i>Zarządzaj</a>
       </div>
       <div class="table-responsive">
@@ -120,8 +151,10 @@
   </div>
   <div class="col-lg-6">
     <div class="card border-0" style="background:#1a1d27">
-      <div class="card-header border-0 bg-transparent d-flex justify-content-between">
-        <h6 class="fw-semibold mb-0">Pojazdy</h6>
+      <div class="card-header border-0 bg-transparent d-flex justify-content-between align-items-start">
+        <div>
+          <h6 class="fw-semibold mb-0">Pojazdy</h6>
+        </div>
         <a href="/vehicles" class="btn btn-sm btn-primary"><i class="bi bi-plus me-1"></i>Zarządzaj</a>
       </div>
       <div class="table-responsive">
