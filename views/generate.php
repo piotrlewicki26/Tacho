@@ -98,9 +98,10 @@ $v        = $input ?? [];        // form restore helper
     <script>
     function copyField(inputId, btnId, originalClass) {
         const val = document.getElementById(inputId).value;
-        navigator.clipboard.writeText(val).then(() => {
-            const btn = document.getElementById(btnId);
-            const originalHtml = btn.innerHTML;
+        const btn = document.getElementById(btnId);
+        const originalHtml = btn.innerHTML;
+
+        copyToClipboard(val, function() {
             btn.innerHTML = '<i class="bi bi-check2 me-1"></i>Skopiowano!';
             btn.classList.remove(originalClass);
             btn.classList.add('btn-success');

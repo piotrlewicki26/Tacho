@@ -130,7 +130,7 @@ function licenseStatusLabel(array $lic, string $today): string
                                     <button type="button"
                                             class="btn btn-sm btn-outline-primary ms-1"
                                             title="Kopiuj klucz"
-                                            onclick="navigator.clipboard.writeText('<?= htmlspecialchars($lic['license_key']) ?>')">
+                                            onclick="copyToClipboard('<?= htmlspecialchars($lic['license_key'], ENT_QUOTES) ?>')">
                                         <i class="bi bi-clipboard"></i>
                                     </button>
                                     <!-- Delete -->

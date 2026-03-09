@@ -87,7 +87,35 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"
-        integrity="sha384-YvpcrYf0tY3lHB60NNkmXc4s9bIOgUxi8T/jzmFEpFCFhbHVXedSvMkIxRGgDfHN"
+        integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz"
         crossorigin="anonymous"></script>
+<script>
+/**
+ * Copy `text` to the clipboard.
+ * Works in both secure (HTTPS/localhost) and non-secure contexts.
+ * Calls the optional `onSuccess` callback after a successful copy.
+ */
+function fallbackCopy(text) {
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.position = 'fixed';
+    ta.style.opacity  = '0';
+    document.body.appendChild(ta);
+    ta.focus(); ta.select();
+    try { document.execCommand('copy'); } catch (e) {}
+    document.body.removeChild(ta);
+}
+
+function copyToClipboard(text, onSuccess) {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text)
+            .then(() => { if (onSuccess) onSuccess(); })
+            .catch(() => { fallbackCopy(text); if (onSuccess) onSuccess(); });
+    } else {
+        fallbackCopy(text);
+        if (onSuccess) onSuccess();
+    }
+}
+</script>
 </body>
 </html>
