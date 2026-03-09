@@ -13,8 +13,8 @@ namespace LicenseGenerator;
  * the license-generator project are required.  Remove the namespace
  * declaration (or adjust it) to match the target application's autoloading.
  *
- * Prerequisite: the PHP GMP extension (ext-gmp), which ships enabled by
- * default on virtually all modern Linux PHP packages.
+ * Requires either ext-gmp (preferred, faster) or ext-bcmath (fallback).
+ * Both ship as standard extensions with virtually all PHP distributions.
  *
  * Example (settlement system):
  *
@@ -96,47 +96,21 @@ class LicenseDecoder
      */
     public static function decode(string $licenseKey, string $secret): array|false
     {
-        self::requireGmp();
-
         $b36 = self::normaliseKey($licenseKey);
         if ($b36 === null) {
             return false;
         }
 
-        $n = gmp_init(strtolower($b36), 36);
-
-        // Split 82-bit number: top 18 bits = HMAC, bottom 64 bits = payload.
-        $mask64  = gmp_sub(gmp_pow(2, 64), 1);
-        $payload = gmp_and($n, $mask64);
-        $hmac18  = gmp_intval(gmp_div_q($n, gmp_pow(2, 64)));
-
-        // Recompute HMAC from the 8-byte big-endian payload and verify.
-        $payload8       = str_pad(gmp_export($payload), 8, "\0", STR_PAD_LEFT);
-        $computed       = hash_hmac('sha256', $payload8, $secret, true);
-        $computed18     = (ord($computed[0]) << 10) | (ord($computed[1]) << 2) | (ord($computed[2]) >> 6);
-
-        if ($hmac18 !== $computed18) {
-            return false;
+        if (extension_loaded('gmp')) {
+            return self::decodeGmp($b36, $secret);
+        } elseif (extension_loaded('bcmath')) {
+            return self::decodeBc($b36, $secret);
         }
 
-        // Extract individual fields from the payload.
-        $moduleMask   = gmp_intval(gmp_and($payload, gmp_init(0x1F)));
-        $daysFrom     = gmp_intval(gmp_and(gmp_div_q($payload, gmp_pow(2,  5)), gmp_init(0x3FFF)));
-        $daysTo       = gmp_intval(gmp_and(gmp_div_q($payload, gmp_pow(2, 19)), gmp_init(0x3FFF)));
-        $maxOperators = gmp_intval(gmp_and(gmp_div_q($payload, gmp_pow(2, 33)), gmp_init(0x3FFF)));
-        $maxDrivers   = gmp_intval(gmp_and(gmp_div_q($payload, gmp_pow(2, 47)), gmp_init(0x1FFFF)));
-
-        $epoch     = new \DateTimeImmutable(self::DATE_EPOCH);
-        $validFrom = $epoch->modify("+{$daysFrom} days")->format('Y-m-d');
-        $validTo   = $epoch->modify("+{$daysTo} days")->format('Y-m-d');
-
-        return [
-            'modules'       => self::maskToModules($moduleMask),
-            'valid_from'    => $validFrom,
-            'valid_to'      => $validTo,
-            'max_operators' => $maxOperators,
-            'max_drivers'   => $maxDrivers,
-        ];
+        throw new \RuntimeException(
+            'A PHP big-integer extension is required for license key decoding. '
+            . 'Install either ext-gmp (apt install php-gmp) or ext-bcmath (apt install php-bcmath).'
+        );
     }
 
     /**
@@ -189,9 +163,9 @@ class LicenseDecoder
      * @param  string   $validTo       ISO date, must be ≥ DATE_EPOCH and ≥ $validFrom.
      * @param  int      $maxOperators  1–9999.
      * @param  int      $maxDrivers    1–99999.
-     * @param  string   $secret        HMAC key (the configured LICENSE_SECRET).
+     * @param  string   $secret        The per-license HMAC secret.
      * @throws \RangeException   when a value cannot be represented in the key.
-     * @throws \RuntimeException when GMP is not available.
+     * @throws \RuntimeException when neither ext-gmp nor ext-bcmath is available.
      *
      * @internal Called by LicenseManager::generate().
      */
@@ -203,8 +177,6 @@ class LicenseDecoder
         int    $maxDrivers,
         string $secret
     ): string {
-        self::requireGmp();
-
         $moduleMask = self::modulesToMask($modules);
         $epoch      = new \DateTimeImmutable(self::DATE_EPOCH);
 
@@ -218,29 +190,15 @@ class LicenseDecoder
             throw new \RangeException("max_drivers must be 1–99999 (got {$maxDrivers}).");
         }
 
-        // Build 64-bit payload GMP integer.
-        $n = gmp_init($moduleMask);
-        $n = gmp_add($n, gmp_mul(gmp_init($daysFrom),     gmp_pow(2,  5)));
-        $n = gmp_add($n, gmp_mul(gmp_init($daysTo),       gmp_pow(2, 19)));
-        $n = gmp_add($n, gmp_mul(gmp_init($maxOperators), gmp_pow(2, 33)));
-        $n = gmp_add($n, gmp_mul(gmp_init($maxDrivers),   gmp_pow(2, 47)));
+        if (extension_loaded('gmp')) {
+            return self::encodeGmp($moduleMask, $daysFrom, $daysTo, $maxOperators, $maxDrivers, $secret);
+        } elseif (extension_loaded('bcmath')) {
+            return self::encodeBc($moduleMask, $daysFrom, $daysTo, $maxOperators, $maxDrivers, $secret);
+        }
 
-        // Compute 18-bit HMAC over the 8-byte big-endian payload.
-        $payload8 = str_pad(gmp_export($n), 8, "\0", STR_PAD_LEFT);
-        $hmac     = hash_hmac('sha256', $payload8, $secret, true);
-        $hmac18   = (ord($hmac[0]) << 10) | (ord($hmac[1]) << 2) | (ord($hmac[2]) >> 6);
-
-        // Combine into 82-bit number: checksum in bits 64-81, payload in bits 0-63.
-        $combined = gmp_add($n, gmp_mul(gmp_init($hmac18), gmp_pow(2, 64)));
-
-        $b36 = strtoupper(str_pad(gmp_strval($combined, 36), 16, '0', STR_PAD_LEFT));
-
-        return sprintf(
-            'TACHO-%s-%s-%s-%s',
-            substr($b36, 0, 4),
-            substr($b36, 4, 4),
-            substr($b36, 8, 4),
-            substr($b36, 12, 4)
+        throw new \RuntimeException(
+            'A PHP big-integer extension is required for license key encoding. '
+            . 'Install either ext-gmp (apt install php-gmp) or ext-bcmath (apt install php-bcmath).'
         );
     }
 
@@ -330,14 +288,180 @@ class LicenseDecoder
         return $days;
     }
 
-    /** Throw a clear error when the GMP extension is not loaded. */
-    private static function requireGmp(): void
+    // -----------------------------------------------------------------------
+    // GMP implementations (preferred – faster)
+    // -----------------------------------------------------------------------
+
+    private static function encodeGmp(
+        int    $moduleMask,
+        int    $daysFrom,
+        int    $daysTo,
+        int    $maxOperators,
+        int    $maxDrivers,
+        string $secret
+    ): string {
+        $n = gmp_init($moduleMask);
+        $n = gmp_add($n, gmp_mul(gmp_init($daysFrom),     gmp_pow(2,  5)));
+        $n = gmp_add($n, gmp_mul(gmp_init($daysTo),       gmp_pow(2, 19)));
+        $n = gmp_add($n, gmp_mul(gmp_init($maxOperators), gmp_pow(2, 33)));
+        $n = gmp_add($n, gmp_mul(gmp_init($maxDrivers),   gmp_pow(2, 47)));
+
+        $payload8 = str_pad(gmp_export($n), 8, "\0", STR_PAD_LEFT);
+        $hmac     = hash_hmac('sha256', $payload8, $secret, true);
+        $hmac18   = (ord($hmac[0]) << 10) | (ord($hmac[1]) << 2) | (ord($hmac[2]) >> 6);
+
+        $combined = gmp_add($n, gmp_mul(gmp_init($hmac18), gmp_pow(2, 64)));
+        $b36      = strtoupper(str_pad(gmp_strval($combined, 36), 16, '0', STR_PAD_LEFT));
+
+        return sprintf('TACHO-%s-%s-%s-%s',
+            substr($b36, 0, 4), substr($b36, 4, 4),
+            substr($b36, 8, 4), substr($b36, 12, 4));
+    }
+
+    private static function decodeGmp(string $b36, string $secret): array|false
     {
-        if (!extension_loaded('gmp')) {
-            throw new \RuntimeException(
-                'The PHP GMP extension (ext-gmp) is required for license key '
-                . 'encoding/decoding. Install it with: apt install php-gmp'
-            );
+        $n       = gmp_init(strtolower($b36), 36);
+        $mask64  = gmp_sub(gmp_pow(2, 64), 1);
+        $payload = gmp_and($n, $mask64);
+        $hmac18  = gmp_intval(gmp_div_q($n, gmp_pow(2, 64)));
+
+        $payload8   = str_pad(gmp_export($payload), 8, "\0", STR_PAD_LEFT);
+        $computed   = hash_hmac('sha256', $payload8, $secret, true);
+        $computed18 = (ord($computed[0]) << 10) | (ord($computed[1]) << 2) | (ord($computed[2]) >> 6);
+
+        if ($hmac18 !== $computed18) {
+            return false;
         }
+
+        $moduleMask   = gmp_intval(gmp_and($payload, gmp_init(0x1F)));
+        $daysFrom     = gmp_intval(gmp_and(gmp_div_q($payload, gmp_pow(2,  5)), gmp_init(0x3FFF)));
+        $daysTo       = gmp_intval(gmp_and(gmp_div_q($payload, gmp_pow(2, 19)), gmp_init(0x3FFF)));
+        $maxOperators = gmp_intval(gmp_and(gmp_div_q($payload, gmp_pow(2, 33)), gmp_init(0x3FFF)));
+        $maxDrivers   = gmp_intval(gmp_and(gmp_div_q($payload, gmp_pow(2, 47)), gmp_init(0x1FFFF)));
+
+        return self::buildResult($moduleMask, $daysFrom, $daysTo, $maxOperators, $maxDrivers);
+    }
+
+    // -----------------------------------------------------------------------
+    // BCMath implementations (fallback when ext-gmp is absent)
+    // -----------------------------------------------------------------------
+
+    private static function encodeBc(
+        int    $moduleMask,
+        int    $daysFrom,
+        int    $daysTo,
+        int    $maxOperators,
+        int    $maxDrivers,
+        string $secret
+    ): string {
+        $n = (string)$moduleMask;
+        $n = bcadd($n, bcmul((string)$daysFrom,     bcpow('2',  '5', 0), 0), 0);
+        $n = bcadd($n, bcmul((string)$daysTo,        bcpow('2', '19', 0), 0), 0);
+        $n = bcadd($n, bcmul((string)$maxOperators,  bcpow('2', '33', 0), 0), 0);
+        $n = bcadd($n, bcmul((string)$maxDrivers,    bcpow('2', '47', 0), 0), 0);
+
+        $payload8 = self::bcToBytes8($n);
+        $hmac     = hash_hmac('sha256', $payload8, $secret, true);
+        $hmac18   = (ord($hmac[0]) << 10) | (ord($hmac[1]) << 2) | (ord($hmac[2]) >> 6);
+
+        $combined = bcadd($n, bcmul((string)$hmac18, bcpow('2', '64', 0), 0), 0);
+        $b36      = str_pad(self::bcToB36($combined), 16, '0', STR_PAD_LEFT);
+
+        return sprintf('TACHO-%s-%s-%s-%s',
+            substr($b36, 0, 4), substr($b36, 4, 4),
+            substr($b36, 8, 4), substr($b36, 12, 4));
+    }
+
+    private static function decodeBc(string $b36, string $secret): array|false
+    {
+        $n       = self::bcFromB36(strtolower($b36));
+        $pow64   = bcpow('2', '64', 0);
+        $hmac18  = (int)bcdiv($n, $pow64, 0);
+        $payload = bcmod($n, $pow64);
+
+        $payload8   = self::bcToBytes8($payload);
+        $computed   = hash_hmac('sha256', $payload8, $secret, true);
+        $computed18 = (ord($computed[0]) << 10) | (ord($computed[1]) << 2) | (ord($computed[2]) >> 6);
+
+        if ($hmac18 !== $computed18) {
+            return false;
+        }
+
+        $moduleMask   = (int)bcmod($payload, '32');
+        $daysFrom     = self::bcGetBits($payload,  5, 14);
+        $daysTo       = self::bcGetBits($payload, 19, 14);
+        $maxOperators = self::bcGetBits($payload, 33, 14);
+        $maxDrivers   = self::bcGetBits($payload, 47, 17);
+
+        return self::buildResult($moduleMask, $daysFrom, $daysTo, $maxOperators, $maxDrivers);
+    }
+
+    /** Shared result builder used by both decodeGmp and decodeBc. */
+    private static function buildResult(
+        int $moduleMask,
+        int $daysFrom,
+        int $daysTo,
+        int $maxOperators,
+        int $maxDrivers
+    ): array {
+        $epoch = new \DateTimeImmutable(self::DATE_EPOCH);
+        return [
+            'modules'       => self::maskToModules($moduleMask),
+            'valid_from'    => $epoch->modify("+{$daysFrom} days")->format('Y-m-d'),
+            'valid_to'      => $epoch->modify("+{$daysTo} days")->format('Y-m-d'),
+            'max_operators' => $maxOperators,
+            'max_drivers'   => $maxDrivers,
+        ];
+    }
+
+    // -----------------------------------------------------------------------
+    // BCMath arithmetic helpers
+    // -----------------------------------------------------------------------
+
+    /** Base-36 lowercase string → BCMath decimal string. */
+    private static function bcFromB36(string $b36): string
+    {
+        $alphabet = '0123456789abcdefghijklmnopqrstuvwxyz';
+        $dec = '0';
+        for ($i = 0, $len = strlen($b36); $i < $len; $i++) {
+            $digit = strpos($alphabet, $b36[$i]);
+            $dec   = bcadd(bcmul($dec, '36', 0), (string)$digit, 0);
+        }
+        return $dec;
+    }
+
+    /** BCMath decimal string → uppercase base-36 string. */
+    private static function bcToB36(string $dec): string
+    {
+        if (bccomp($dec, '0', 0) === 0) {
+            return '0';
+        }
+        $alphabet = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+        $result   = '';
+        while (bccomp($dec, '0', 0) > 0) {
+            $rem    = (int)bcmod($dec, '36');
+            $result = $alphabet[$rem] . $result;
+            $dec    = bcdiv($dec, '36', 0);
+        }
+        return $result;
+    }
+
+    /** BCMath decimal string → 8-byte big-endian binary string. */
+    private static function bcToBytes8(string $dec): string
+    {
+        $hex = '';
+        while (bccomp($dec, '0', 0) > 0) {
+            $byte = (int)bcmod($dec, '256');
+            $hex  = sprintf('%02x', $byte) . $hex;
+            $dec  = bcdiv($dec, '256', 0);
+        }
+        return str_pad(hex2bin($hex ?: '00'), 8, "\0", STR_PAD_LEFT);
+    }
+
+    /** Extract $bits bits from BCMath decimal $n at bit position $from. */
+    private static function bcGetBits(string $n, int $from, int $bits): int
+    {
+        $shifted = bcdiv($n, bcpow('2', (string)$from, 0), 0);
+        return (int)bcmod($shifted, bcpow('2', (string)$bits, 0));
     }
 }

@@ -37,10 +37,34 @@ $v        = $input ?? [];        // form restore helper
                        id="generatedKey"
                        value="<?= htmlspecialchars($license['license_key']) ?>"
                        readonly>
-                <button type="button" class="btn btn-outline-secondary" id="copyBtn"
-                        onclick="copyKey()">
+                <button type="button" class="btn btn-outline-secondary" id="copyKeyBtn"
+                        onclick="copyField('generatedKey','copyKeyBtn','btn-outline-secondary')">
                     <i class="bi bi-clipboard me-1"></i>Kopiuj
                 </button>
+            </div>
+
+            <!-- Auto-generated per-license secret -->
+            <div class="alert alert-warning p-3 mb-3">
+                <div class="fw-bold mb-1">
+                    <i class="bi bi-key-fill me-1"></i>Sekret weryfikacji
+                    <span class="badge bg-danger ms-1">Zapisz i przekaż do systemu rozliczeń!</span>
+                </div>
+                <div class="input-group mb-1">
+                    <input type="text" class="form-control font-monospace small"
+                           id="generatedSecret"
+                           value="<?= htmlspecialchars($license['used_secret']) ?>"
+                           readonly>
+                    <button type="button" class="btn btn-warning" id="copySecretBtn"
+                            onclick="copyField('generatedSecret','copySecretBtn','btn-warning')">
+                        <i class="bi bi-clipboard me-1"></i>Kopiuj
+                    </button>
+                </div>
+                <div class="form-text text-dark">
+                    <i class="bi bi-info-circle me-1"></i>
+                    Ten sekret jest unikalny dla tej licencji. Skonfiguruj go w systemie rozliczeń kierowców –
+                    bez niego system nie będzie mógł zweryfikować licencji offline.
+                    Sekret jest bezpiecznie przechowywany w bazie danych generatora.
+                </div>
             </div>
 
             <div class="row g-2 text-sm">
@@ -72,15 +96,18 @@ $v        = $input ?? [];        // form restore helper
     </div>
 
     <script>
-    function copyKey() {
-        const key = document.getElementById('generatedKey').value;
-        navigator.clipboard.writeText(key).then(() => {
-            const btn = document.getElementById('copyBtn');
+    function copyField(inputId, btnId, originalClass) {
+        const val = document.getElementById(inputId).value;
+        navigator.clipboard.writeText(val).then(() => {
+            const btn = document.getElementById(btnId);
+            const originalHtml = btn.innerHTML;
             btn.innerHTML = '<i class="bi bi-check2 me-1"></i>Skopiowano!';
-            btn.classList.replace('btn-outline-secondary', 'btn-success');
+            btn.classList.remove(originalClass);
+            btn.classList.add('btn-success');
             setTimeout(() => {
-                btn.innerHTML = '<i class="bi bi-clipboard me-1"></i>Kopiuj';
-                btn.classList.replace('btn-success', 'btn-outline-secondary');
+                btn.innerHTML = originalHtml;
+                btn.classList.remove('btn-success');
+                btn.classList.add(originalClass);
             }, 2000);
         });
     }
@@ -178,34 +205,15 @@ $v        = $input ?? [];        // form restore helper
                         <textarea id="notes" name="notes" class="form-control" rows="2"
                                   placeholder="Uwagi wewnętrzne..."><?= htmlspecialchars($v['notes'] ?? '') ?></textarea>
                     </div>
-                    <div class="col-12">
-                        <label for="license_secret" class="form-label fw-semibold">
-                            Sekret licencji (LICENSE_SECRET)
-                            <span class="badge bg-warning text-dark ms-1">Wymagany</span>
-                        </label>
-                        <div class="input-group">
-                            <input type="password" id="license_secret" name="license_secret"
-                                   class="form-control font-monospace"
-                                   placeholder="Minimum 32 znaków"
-                                   value="<?= htmlspecialchars($v['licenseSecret'] ?? LICENSE_SECRET) ?>"
-                                   required minlength="32"
-                                   autocomplete="off">
-                            <button type="button" class="btn btn-outline-secondary"
-                                    title="Pokaż / ukryj sekret"
-                                    onclick="toggleSecret()">
-                                <i class="bi bi-eye" id="secretEyeIcon"></i>
-                            </button>
-                        </div>
-                        <div class="form-text">
-                            Sekret HMAC-SHA256 używany do podpisania tej licencji.
-                            Musi być <strong>identyczny</strong> z wartością <code>LICENSE_SECRET</code>
-                            skonfigurowaną w docelowym systemie TachoSystem.
-                            Domyślnie używany jest sekret z pliku <code>.env</code>.
-                        </div>
-                    </div>
                 </div>
 
-                <div class="d-flex gap-2">
+                <div class="alert alert-info py-2 px-3 small">
+                    <i class="bi bi-info-circle me-1"></i>
+                    Sekret HMAC dla tej licencji zostanie <strong>wygenerowany automatycznie</strong> i wyświetlony po kliknięciu „Generuj licencję".
+                    Przekaż go do systemu rozliczeń kierowców.
+                </div>
+
+                <div class="d-flex gap-2 mt-3">
                     <button type="submit" class="btn btn-primary px-4">
                         <i class="bi bi-key me-2"></i>Generuj licencję
                     </button>
@@ -214,18 +222,4 @@ $v        = $input ?? [];        // form restore helper
             </form>
         </div>
     </div>
-
-    <script>
-    function toggleSecret() {
-        const secretInput = document.getElementById('license_secret');
-        const icon = document.getElementById('secretEyeIcon');
-        if (secretInput.type === 'password') {
-            secretInput.type = 'text';
-            icon.className = 'bi bi-eye-slash';
-        } else {
-            secretInput.type = 'password';
-            icon.className = 'bi bi-eye';
-        }
-    }
-    </script>
 <?php endif; ?>

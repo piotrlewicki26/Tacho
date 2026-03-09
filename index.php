@@ -155,7 +155,6 @@ if ($path === '/generate' && $method === 'POST') {
     $validTo       = trim((string)($_POST['valid_to']        ?? date('Y-m-d', strtotime('+1 year'))));
     $hardwareId    = trim((string)($_POST['hardware_id']     ?? ''));
     $notes         = trim((string)($_POST['notes']           ?? ''));
-    $licenseSecret = trim((string)($_POST['license_secret']  ?? LICENSE_SECRET));
 
     if ($companyId === '') {
         $errors[] = 'ID firmy jest wymagane.';
@@ -187,11 +186,7 @@ if ($path === '/generate' && $method === 'POST') {
         $errors[] = 'Data końca ważności nie może przekraczać 2064-11-08 (limit formatu klucza).';
     }
 
-    if (strlen($licenseSecret) < 32) {
-        $errors[] = 'Sekret licencji musi mieć co najmniej 32 znaki. Sprawdź ustawienia lub podaj własny sekret.';
-    }
-
-    $input = compact('companyId', 'companyName', 'modules', 'maxOperators', 'maxDrivers', 'validFrom', 'validTo', 'hardwareId', 'notes', 'licenseSecret');
+    $input = compact('companyId', 'companyName', 'modules', 'maxOperators', 'maxDrivers', 'validFrom', 'validTo', 'hardwareId', 'notes');
 
     if (!empty($errors)) {
         renderView('generate', compact('errors', 'input'));
@@ -210,7 +205,8 @@ if ($path === '/generate' && $method === 'POST') {
     ];
 
     try {
-        $license = $licenseManager->generate($licenseData, $auth->userId(), $licenseSecret);
+        // No secret passed — LicenseManager auto-generates a unique per-license secret.
+        $license = $licenseManager->generate($licenseData, $auth->userId());
     } catch (\Throwable $e) {
         $errors[] = 'Błąd generowania licencji: ' . $e->getMessage();
         renderView('generate', compact('errors', 'input'));
@@ -229,9 +225,12 @@ if ($path === '/verify' && $method === 'POST') {
     $licenseKey = trim((string)($_POST['license_key'] ?? ''));
     $companyId  = trim((string)($_POST['company_id']  ?? ''));
     $result     = $licenseManager->verify($licenseKey, $companyId);
-    // Attempt offline decode using the configured secret so the view can show
-    // key-embedded data independently of the database.
-    $keyData = $licenseManager->decodeKey($licenseKey);
+    // Offline decode using the per-license secret stored in the DB record.
+    $keyData      = null;
+    $storedSecret = $result['license']['used_secret'] ?? '';
+    if ($storedSecret !== '') {
+        $keyData = $licenseManager->decodeKey($licenseKey, $storedSecret);
+    }
     renderView('verify', compact('result', 'licenseKey', 'companyId', 'keyData'));
 }
 

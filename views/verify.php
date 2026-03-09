@@ -128,7 +128,7 @@ use LicenseGenerator\LicenseDecoder;
         <div class="card-body">
             <p class="text-muted small mb-3">
                 Poniższe dane zostały odczytane bezpośrednio z klucza licencji (bez dostępu do bazy danych)
-                przy użyciu skonfigurowanego sekretu <code>LICENSE_SECRET</code>.
+                przy użyciu sekretu powiązanego z tą licencją.
                 Integralność klucza potwierdza wbudowany skrót HMAC-SHA256.
             </p>
             <div class="row g-3">
@@ -168,7 +168,7 @@ use LicenseGenerator\LicenseDecoder;
 <?php elseif (isset($result) && empty($keyData)): ?>
     <div class="alert alert-warning mt-3">
         <i class="bi bi-exclamation-triangle me-2"></i>
-        Nie można odczytać danych z klucza przy użyciu skonfigurowanego sekretu
-        <code>LICENSE_SECRET</code>.  Sprawdź, czy klucz jest poprawny i czy sekret jest właściwy.
+        Nie można odczytać danych z klucza.  Rekord licencji może nie zawierać sekretu weryfikacji
+        lub klucz mógł zostać zmodyfikowany.
     </div>
 <?php endif; ?>

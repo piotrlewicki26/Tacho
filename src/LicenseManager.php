@@ -18,10 +18,11 @@ use PDO;
  *   bits 19-32 : valid_to   (days since 2020-01-01)
  *   bits 33-46 : max_operators
  *   bits 47-63 : max_drivers
- *   bits 64-81 : 18-bit HMAC-SHA256 checksum (bound to LICENSE_SECRET)
+ *   bits 64-81 : 18-bit HMAC-SHA256 checksum (bound to the per-license secret)
  *
- * This means the key is self-contained: any system that holds the matching
- * LICENSE_SECRET can validate the license and read its parameters offline,
+ * The per-license secret is auto-generated (64 random hex chars) at generation
+ * time and stored in the database's 'used_secret' column.  Any system that
+ * holds this secret can validate the license and read its parameters offline,
  * without a database.  See LicenseDecoder for the portable decoder.
  *
  * The database additionally stores a full HMAC-SHA256 signature over:
@@ -49,6 +50,11 @@ class LicenseManager
     /**
      * Generate a new license key, persist it, and return the full record.
      *
+     * When no $secret is provided (the default), a cryptographically random
+     * 64-hex-character secret is auto-generated and stored in the 'used_secret'
+     * column.  Share this secret with the settlement system so it can verify the
+     * license offline using LicenseDecoder::decode($key, $secret).
+     *
      * @param array{
      *     company_id:     string,
      *     company_name:   string,
@@ -60,12 +66,13 @@ class LicenseManager
      *     hardware_id:    string,
      *     notes:          string,
      * } $data
-     * @param string $secret  The HMAC secret to use. Defaults to LICENSE_SECRET constant.
-     * @throws \RuntimeException when no usable secret is available.
+     * @param string $secret  Optional HMAC secret override. Auto-generated when empty.
+     * @throws \RuntimeException when secret generation fails.
      */
     public function generate(array $data, ?int $userId = null, string $secret = ''): array
     {
-        $secret = ($secret === '') ? LICENSE_SECRET : $secret;
+        // Auto-generate a unique per-license secret when none is provided.
+        $secret = ($secret === '') ? bin2hex(random_bytes(32)) : $secret;
         $this->assertSecret($secret);
 
         $modules    = $this->normaliseModules($data['modules'] ?? ['all']);
@@ -168,12 +175,11 @@ class LicenseManager
             return ['valid' => false, 'message' => 'Licencja wygasła (' . $license['valid_to'] . ').', 'license' => $license];
         }
 
-        // Use the secret stored with this license; fall back to the configured
-        // LICENSE_SECRET for licenses created before per-license secrets existed.
-        $secret = ($license['used_secret'] ?? '') ?: LICENSE_SECRET;
+        // Use the secret stored with this license.
+        $secret = ($license['used_secret'] ?? '');
 
         if ($secret === '') {
-            return ['valid' => false, 'message' => 'Brak skonfigurowanego sekretu (LICENSE_SECRET) – nie można zweryfikować podpisu.', 'license' => $license];
+            return ['valid' => false, 'message' => 'Rekord licencji nie zawiera sekretu weryfikacji – nie można zweryfikować podpisu.', 'license' => $license];
         }
 
         // ── Layer 2: offline key HMAC ───────────────────────────────────────
@@ -311,7 +317,7 @@ class LicenseManager
      *
      * Message: company_id|license_key|modules|max_operators|max_drivers|valid_from|valid_to|hardware_id
      *
-     * @param string $secret  HMAC key. Defaults to the LICENSE_SECRET constant.
+     * The caller must always pass the per-license secret explicitly.
      */
     public function computeHash(
         string $companyId,
@@ -322,9 +328,8 @@ class LicenseManager
         string $validFrom,
         string $validTo,
         string $hardwareId,
-        string $secret = ''
+        string $secret
     ): string {
-        $secret  = ($secret === '') ? LICENSE_SECRET : $secret;
         $message = implode('|', [
             $companyId,
             $licenseKey,
@@ -357,10 +362,12 @@ class LicenseManager
     /**
      * Offline-decode a license key without a database lookup.
      *
-     * Returns the decoded metadata array (same shape as LicenseDecoder::decode()),
-     * or false when the key format is invalid or the HMAC does not match the secret.
+     * The caller must provide the per-license secret (from the 'used_secret'
+     * column of the license record).
      *
-     * @param string $secret  Defaults to the configured LICENSE_SECRET.
+     * Returns the decoded metadata array, or false when the key format is
+     * invalid or the HMAC does not match the secret.
+     *
      * @return array{
      *     modules:       string[],
      *     valid_from:    string,
@@ -369,9 +376,11 @@ class LicenseManager
      *     max_drivers:   int,
      * }|false
      */
-    public function decodeKey(string $licenseKey, string $secret = ''): array|false
+    public function decodeKey(string $licenseKey, string $secret): array|false
     {
-        $secret = ($secret === '') ? LICENSE_SECRET : $secret;
+        if ($secret === '') {
+            return false;
+        }
         return LicenseDecoder::decode($licenseKey, $secret);
     }
 
@@ -379,12 +388,12 @@ class LicenseManager
     // Private helpers
     // -----------------------------------------------------------------------
 
-    /** Throw when no secret is configured or provided. */
+    /** Throw when no secret is available (should never happen since random_bytes always succeeds). */
     private function assertSecret(string $secret): void
     {
         if ($secret === '') {
             throw new \RuntimeException(
-                'LICENSE_SECRET nie jest skonfigurowany. Uruchom setup.php, ustaw zmienną środowiskową lub podaj sekret w formularzu.'
+                'Pusty sekret licencji – to nie powinno się zdarzyć (random_bytes() powinno wcześniej rzucić wyjątek).'
             );
         }
     }

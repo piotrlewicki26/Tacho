@@ -60,7 +60,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $step === 2 && $allOk) {
     $username  = trim($_POST['username'] ?? '');
     $password  = $_POST['password'] ?? '';
     $password2 = $_POST['password2'] ?? '';
-    $secret    = trim($_POST['secret'] ?? '');
     $dbPath    = trim($_POST['db_path'] ?? (__DIR__ . '/database/licenses.db'));
 
     if ($username === '') {
@@ -77,29 +76,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $step === 2 && $allOk) {
         $errors[] = 'Podane hasła nie są identyczne.';
     }
 
-    if (strlen($secret) < 32) {
-        $errors[] = 'Sekret licencji musi mieć co najmniej 32 znaki.';
-    }
-
     if (empty($errors)) {
-        // Write .env
+        // Write .env (no global secret — each license has its own auto-generated secret)
         $envContent = <<<ENV
 # TachoSystem – Generator Licencji – konfiguracja
 DATABASE_PATH={$dbPath}
-LICENSE_SECRET={$secret}
 APP_DEBUG=false
 ENV;
         file_put_contents(__DIR__ . '/.env', $envContent);
 
         // Reload config with new .env values
         putenv("DATABASE_PATH={$dbPath}");
-        putenv("LICENSE_SECRET={$secret}");
         $_ENV['DATABASE_PATH'] = $dbPath;
-        $_ENV['LICENSE_SECRET'] = $secret;
-
-        // Re-define with new values
-        define('DATABASE_PATH_SETUP', $dbPath);
-        define('LICENSE_SECRET_SETUP', $secret);
 
         // Create database and admin user
         try {
@@ -117,8 +105,7 @@ ENV;
     }
 }
 
-// Generate a suggested secret
-$suggestedSecret = bin2hex(random_bytes(32));
+// (no global secret is generated or required — each license has its own auto-generated secret)
 
 ?><!DOCTYPE html>
 <html lang="pl">
@@ -228,25 +215,10 @@ $suggestedSecret = bin2hex(random_bytes(32));
                        autocomplete="new-password" required>
             </div>
 
-            <h6 class="text-muted small text-uppercase mt-2 mb-2">Sekret licencji</h6>
-            <div class="mb-3">
-                <label for="secret" class="form-label fw-semibold">
-                    LICENSE_SECRET <span class="text-danger">*</span>
-                </label>
-                <div class="input-group">
-                    <input type="text" id="secret" name="secret" class="form-control font-monospace"
-                           value="<?= htmlspecialchars($_POST['secret'] ?? $suggestedSecret) ?>"
-                           required minlength="32">
-                    <button type="button" class="btn btn-outline-secondary"
-                            onclick="document.getElementById('secret').value = '<?= bin2hex(random_bytes(32)) ?>'">
-                        <i class="bi bi-arrow-repeat"></i>
-                    </button>
-                </div>
-                <div class="form-text">
-                    Ten sekret musi być identyczny z kluczem <code>LICENSE_SECRET</code>
-                    skonfigurowanym w głównym systemie TachoSystem.
-                    Przechowuj go w bezpiecznym miejscu – zmiana uniemożliwi weryfikację istniejących licencji.
-                </div>
+            <div class="alert alert-info small py-2 px-3 mb-4">
+                <i class="bi bi-info-circle me-1"></i>
+                Sekret dla każdej licencji jest generowany automatycznie podczas tworzenia licencji –
+                nie ma potrzeby konfigurowania globalnego sekretu.
             </div>
 
             <div class="mb-4">
