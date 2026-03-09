@@ -63,7 +63,7 @@ $userInitial = strtoupper(substr($user['name'] ?? 'U', 0, 1));
 
       <!-- Fleet dropdown -->
       <div class="nav-dropdown <?= $anyActive(['/drivers','/vehicles']) ? 'active' : '' ?>">
-        <button class="nav-link nav-dropdown-toggle" type="button" aria-haspopup="true" aria-expanded="false">
+        <button class="nav-link nav-dropdown-toggle" type="button" aria-haspopup="menu" aria-expanded="false">
           <i class="bi bi-diagram-3-fill nav-icon"></i>
           <span>Flota</span>
           <i class="bi bi-chevron-down nav-caret"></i>
@@ -83,7 +83,7 @@ $userInitial = strtoupper(substr($user['name'] ?? 'U', 0, 1));
 
       <!-- Tachograph dropdown -->
       <div class="nav-dropdown <?= $anyActive(['/analysis']) ? 'active' : '' ?>">
-        <button class="nav-link nav-dropdown-toggle" type="button" aria-haspopup="true" aria-expanded="false">
+        <button class="nav-link nav-dropdown-toggle" type="button" aria-haspopup="menu" aria-expanded="false">
           <i class="bi bi-hdd-fill nav-icon"></i>
           <span>Tachograf</span>
           <i class="bi bi-chevron-down nav-caret"></i>
@@ -99,7 +99,7 @@ $userInitial = strtoupper(substr($user['name'] ?? 'U', 0, 1));
 
       <!-- Reports dropdown -->
       <div class="nav-dropdown <?= $anyActive(['/reports']) ? 'active' : '' ?>">
-        <button class="nav-link nav-dropdown-toggle" type="button" aria-haspopup="true" aria-expanded="false">
+        <button class="nav-link nav-dropdown-toggle" type="button" aria-haspopup="menu" aria-expanded="false">
           <i class="bi bi-bar-chart-fill nav-icon"></i>
           <span>Raporty</span>
           <i class="bi bi-chevron-down nav-caret"></i>
@@ -121,7 +121,7 @@ $userInitial = strtoupper(substr($user['name'] ?? 'U', 0, 1));
       <?php if ($user && in_array($user['role'], ['superadmin', 'admin'], true)): ?>
       <?php $adminPaths = $user['role'] === 'superadmin' ? ['/companies','/admin/licenses','/admin/users'] : ['/admin/users']; ?>
       <div class="nav-dropdown <?= $anyActive($adminPaths) ? 'active' : '' ?>">
-        <button class="nav-link nav-dropdown-toggle" type="button" aria-haspopup="true" aria-expanded="false">
+        <button class="nav-link nav-dropdown-toggle" type="button" aria-haspopup="menu" aria-expanded="false">
           <i class="bi bi-shield-lock-fill nav-icon"></i>
           <span>Administracja</span>
           <i class="bi bi-chevron-down nav-caret"></i>
@@ -160,12 +160,12 @@ $userInitial = strtoupper(substr($user['name'] ?? 'U', 0, 1));
 
       <div class="navbar-date d-none d-lg-flex">
         <i class="bi bi-calendar3"></i>
-        <span><?= date('d.m.Y') ?></span>
+        <time datetime="<?= date('Y-m-d') ?>"><?= date('d.m.Y') ?></time>
       </div>
 
       <!-- User dropdown -->
       <div class="nav-dropdown nav-dropdown-right">
-        <button class="navbar-user-btn nav-dropdown-toggle" type="button" aria-haspopup="true" aria-expanded="false">
+        <button class="navbar-user-btn nav-dropdown-toggle" type="button" aria-haspopup="menu" aria-expanded="false">
           <div class="navbar-avatar"><?= $userInitial ?></div>
           <span class="navbar-user-name d-none d-lg-block"><?= htmlspecialchars($user['name'] ?? '') ?></span>
           <i class="bi bi-chevron-down nav-caret d-none d-lg-block"></i>
