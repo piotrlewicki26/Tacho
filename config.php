@@ -30,6 +30,7 @@ define('SRC_PATH',      APP_PATH . '/src');
 define('VIEWS_PATH',    APP_PATH . '/views');
 define('DATABASE_PATH', (getenv('DATABASE_PATH') ?: APP_PATH . '/database/licenses.db'));
 define('LICENSE_SECRET', (string)(getenv('LICENSE_SECRET') ?: ''));
+define('API_KEY',        (string)(getenv('API_KEY')        ?: ''));
 define('APP_TITLE',     'TachoSystem – Generator Licencji');
 define('APP_DEBUG',     filter_var((getenv('APP_DEBUG') ?: 'false'), FILTER_VALIDATE_BOOLEAN));
 

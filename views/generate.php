@@ -215,15 +215,15 @@ $v        = $input ?? [];        // form restore helper
                         </label>
                         <input type="text" id="license_secret" name="license_secret"
                                class="form-control font-monospace"
-                               placeholder="Wklej 64-znakowy sekret hex z ustawień firmy w systemie TachoSystem"
+                               placeholder="Wklej 48-znakowy sekret hex z ustawień firmy w systemie TachoSystem"
                                value="<?= htmlspecialchars($v['licenseSecret'] ?? '') ?>"
-                               maxlength="64"
-                               pattern="[0-9a-fA-F]{64}"
+                               maxlength="48"
+                               pattern="[0-9a-fA-F]{48}"
                                required>
                         <div class="form-text">
                             <i class="bi bi-info-circle me-1"></i>
                             Skopiuj wartość pola <strong>Sekret licencji</strong> z ustawień firmy w systemie TachoSystem
-                            (64 znaki szesnastkowe). Klucz licencji zostanie wygenerowany przy użyciu tego sekretu,
+                            (48 znaków szesnastkowych). Klucz licencji zostanie wygenerowany przy użyciu tego sekretu,
                             dzięki czemu TachoSystem będzie mógł weryfikować licencję offline bez dodatkowej konfiguracji.
                         </div>
                     </div>

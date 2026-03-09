@@ -127,6 +127,75 @@ if ($path === '/logout') {
     redirect('/login');
 }
 
+// ── JSON API – verify license (used by TachoSystem for online check) ───────
+// Accepts GET or POST.  Authenticate with:
+//   • Authorization: Bearer <API_KEY>  header, or
+//   • ?api_key=<API_KEY>  query parameter.
+// Returns JSON: {valid, message} and, on success, {modules, valid_from,
+// valid_to, max_operators, max_drivers, hardware_id}.
+if ($path === '/api/verify') {
+    header('Content-Type: application/json; charset=utf-8');
+    header('X-Content-Type-Options: nosniff');
+
+    // Reject if no API key is configured on this server.
+    $configuredKey = API_KEY;
+    if ($configuredKey === '') {
+        http_response_code(503);
+        echo json_encode(['valid' => false, 'error' => 'API key is not configured on the license server.']);
+        exit;
+    }
+
+    // Extract the provided key from Authorization header or query/body param.
+    $provided = '';
+    $authHeader = $_SERVER['HTTP_AUTHORIZATION'] ?? '';
+    if (str_starts_with($authHeader, 'Bearer ')) {
+        $provided = substr($authHeader, 7);
+    } else {
+        $provided = trim((string)($_GET['api_key'] ?? $_POST['api_key'] ?? ''));
+    }
+
+    if (!hash_equals($configuredKey, $provided)) {
+        http_response_code(401);
+        echo json_encode(['valid' => false, 'error' => 'Invalid or missing API key.']);
+        exit;
+    }
+
+    // Validate required parameters.
+    $licenseKey = trim((string)($_GET['license_key'] ?? $_POST['license_key'] ?? ''));
+    $companyId  = trim((string)($_GET['company_id']  ?? $_POST['company_id']  ?? ''));
+
+    if ($licenseKey === '' || $companyId === '') {
+        http_response_code(400);
+        echo json_encode(['valid' => false, 'error' => 'Parameters license_key and company_id are required.']);
+        exit;
+    }
+
+    // Run three-layer verification.
+    $result  = $licenseManager->verify($licenseKey, $companyId);
+    $license = $result['license'] ?? null;
+
+    $response = ['valid' => $result['valid'], 'message' => $result['message']];
+
+    if ($result['valid'] && $license !== null) {
+        $rawModules = json_decode((string)$license['modules'], true);
+        if (!is_array($rawModules)) {
+            http_response_code(500);
+            echo json_encode(['valid' => false, 'error' => 'License record contains corrupted module data.']);
+            exit;
+        }
+        $response['modules']       = $rawModules;
+        $response['valid_from']    = $license['valid_from'];
+        $response['valid_to']      = $license['valid_to'];
+        $response['max_operators'] = (int)$license['max_operators'];
+        $response['max_drivers']   = (int)$license['max_drivers'];
+        $response['hardware_id']   = $license['hardware_id'];
+    }
+
+    http_response_code($result['valid'] ? 200 : 403);
+    echo json_encode($response, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+    exit;
+}
+
 // ── All routes below require authentication ────────────────────────────────
 $auth->requireAuth();
 
@@ -187,11 +256,11 @@ if ($path === '/generate' && $method === 'POST') {
         $errors[] = 'Data końca ważności nie może przekraczać 2064-11-08 (limit formatu klucza).';
     }
 
-    // The secret must be provided from the TachoSystem (64 hex characters = 32 bytes).
+    // The secret must be provided from the TachoSystem (48 hex characters = 24 bytes).
     if ($licenseSecret === '') {
         $errors[] = 'Sekret licencji jest wymagany. Skopiuj go z ustawień firmy w systemie TachoSystem.';
-    } elseif (!preg_match('/^[0-9a-fA-F]{64}$/', $licenseSecret)) {
-        $errors[] = 'Sekret licencji musi mieć dokładnie 64 znaki szesnastkowe (litery a-f i cyfry 0-9).';
+    } elseif (!preg_match('/^[0-9a-fA-F]{48}$/', $licenseSecret)) {
+        $errors[] = 'Sekret licencji musi mieć dokładnie 48 znaków szesnastkowych (litery a-f i cyfry 0-9).';
     }
 
     $input = compact('companyId', 'companyName', 'modules', 'maxOperators', 'maxDrivers', 'validFrom', 'validTo', 'hardwareId', 'notes', 'licenseSecret');
