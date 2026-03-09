@@ -39,7 +39,11 @@ class CompanyController
     {
         Auth::requireRole('superadmin');
         if (!Auth::validateCsrf()) { header('Location: /companies/create'); exit; }
-        $id = $this->model->create($this->postData());
+        $data = $this->postData();
+        // Auto-generate a per-company license secret on creation so that a
+        // license can be issued for this company immediately.
+        $data['license_secret'] = License::generateSecret();
+        $id = $this->model->create($data);
         Auth::log('company_created', "Firma ID $id");
         Auth::setFlash('success', 'Firma dodana.');
         header("Location: /companies/$id"); exit;

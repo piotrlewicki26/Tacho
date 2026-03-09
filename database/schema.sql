@@ -37,6 +37,7 @@ CREATE TABLE IF NOT EXISTS `licenses` (
   `valid_to`      DATE          NOT NULL,
   `hardware_id`   VARCHAR(64)   DEFAULT NULL,
   `is_active`     TINYINT(1)    NOT NULL DEFAULT 1,
+  `last_verified_at` DATETIME  DEFAULT NULL COMMENT 'Timestamp of last successful remote license verification',
   `created_at`    DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
   UNIQUE KEY `uq_license_key` (`license_key`),

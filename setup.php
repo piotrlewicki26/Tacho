@@ -90,14 +90,24 @@ if ($step === 4 && isset($_POST['create_admin'])) {
 // ── Step 5: Finalize ───────────────────────────────────────────────────────
 if ($step === 5 && isset($_POST['finalize'])) {
     $cfg    = $_SESSION['setup'] ?? null;
-    $secret = bin2hex(random_bytes(32));
-
-    // Write config file hint (or just .installed marker)
+    // Write the installed marker
     file_put_contents(__DIR__ . '/.installed', date('Y-m-d H:i:s'));
 
-    // Write an env template
+    // Write the .env configuration file
+    // NOTE: No global LICENSE_SECRET is generated here.
+    //       Each company receives its own license secret automatically when
+    //       the company record is created in the admin panel.
     if ($cfg) {
-        $envContent = "APP_URL=http://localhost\nAPP_DEBUG=false\nDB_HOST={$cfg['dbHost']}\nDB_PORT={$cfg['dbPort']}\nDB_NAME={$cfg['dbName']}\nDB_USER={$cfg['dbUser']}\nDB_PASS={$cfg['dbPass']}\nLICENSE_SECRET={$secret}\n";
+        $envContent  = "APP_URL=http://localhost\n";
+        $envContent .= "APP_DEBUG=false\n";
+        $envContent .= "DB_HOST={$cfg['dbHost']}\n";
+        $envContent .= "DB_PORT={$cfg['dbPort']}\n";
+        $envContent .= "DB_NAME={$cfg['dbName']}\n";
+        $envContent .= "DB_USER={$cfg['dbUser']}\n";
+        $envContent .= "DB_PASS={$cfg['dbPass']}\n";
+        $envContent .= "# Remote license-authority URL (optional).\n";
+        $envContent .= "# When set, TachoSystem calls this endpoint once a day to verify active licenses.\n";
+        $envContent .= "LICENSE_VERIFY_URL=\n";
         file_put_contents(__DIR__ . '/.env', $envContent);
     }
 
@@ -211,8 +221,15 @@ render:
   <!-- Step 5: Finalize -->
   <h5 class="mb-3">Krok 5 – Finalizacja</h5>
   <div class="alert alert-info small">
-    <strong>Ważne!</strong> Skopiuj dane konfiguracyjne poniżej do pliku <code>.env</code>
-    lub ustaw je jako zmienne środowiskowe na serwerze. Tajny klucz licencji jest generowany automatycznie.
+    <strong>Ważne!</strong> Plik <code>.env</code> zostanie wygenerowany automatycznie
+    z danymi podanymi w tym kreatorze.<br>
+    Tajny klucz licencji <strong>nie</strong> jest generowany podczas instalacji —
+    każda firma otrzymuje własny, unikalny sekret w momencie jej dodania w panelu administratora
+    (<em>Firmy → Dodaj firmę</em>).<br>
+    Firmy istniejące sprzed tej wersji, które nie mają sekretu, mogą go wygenerować ręcznie
+    w <em>Admin → Licencje</em> przyciskiem „Generuj SECRET".
+    Opcjonalnie ustaw <code>LICENSE_VERIFY_URL</code> w <code>.env</code>, aby włączyć
+    codzienną zdalną weryfikację licencji.
   </div>
   <form method="POST">
     <input type="hidden" name="step" value="5">

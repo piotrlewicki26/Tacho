@@ -62,8 +62,15 @@ define('DB_PASS',    getenv('DB_PASS')    ?: '');
 define('DB_CHARSET', 'utf8mb4');
 
 // ── License ────────────────────────────────────────────────────────────────
-// Override this in .env or environment – NEVER commit the real value.
+// Per-company secrets are stored in companies.license_secret (generated on
+// company creation).  This global fallback is only used when a company row
+// pre-dates the per-company secret feature.  Override in .env.
 define('LICENSE_SECRET_KEY', getenv('LICENSE_SECRET') ?: 'CHANGE_THIS_SECRET_KEY_MIN_32_CHARS!!');
+
+// Remote license-authority URL.  When set, TachoSystem calls this endpoint
+// once per day to validate each company's active license.
+// Leave empty to rely solely on local (SHA-256 hash) verification.
+define('LICENSE_VERIFY_URL', getenv('LICENSE_VERIFY_URL') ?: '');
 
 // ── Upload ─────────────────────────────────────────────────────────────────
 define('UPLOAD_PATH',    dirname(__DIR__, 2) . '/uploads/');

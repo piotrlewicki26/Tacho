@@ -147,6 +147,7 @@ class Auth
 
     /**
      * For non-superadmin users: require an active license on their company.
+     * Also triggers the once-per-day remote license verification.
      * Redirect to /license-required if none found.
      * Safe to call on every authenticated page.
      */
@@ -155,6 +156,10 @@ class Auth
         if (self::isSuperAdmin()) return;
         $cid = self::companyId();
         if (!$cid) return; // no company assigned – separate guard handles this
+
+        // Trigger daily remote verification (no-op when not due or not configured)
+        \Core\License::checkActiveRemotely($cid);
+
         if (!\Core\License::getActive($cid)) {
             $current = parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH);
             // Allow the license-required page itself to render without redirect loop

@@ -69,6 +69,24 @@ if (!$isSetupPage) {
                  COMMENT 'Per-company HMAC secret for license verification'"
             );
         }
+
+        // Migration: add last_verified_at to licenses for daily remote check
+        $hasLastVerified = (bool) $db->query(
+            "SELECT EXISTS(
+               SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS
+               WHERE TABLE_SCHEMA = DATABASE()
+                 AND TABLE_NAME   = 'licenses'
+                 AND COLUMN_NAME  = 'last_verified_at'
+             )"
+        )->fetchColumn();
+        if (!$hasLastVerified) {
+            $db->exec(
+                "ALTER TABLE `licenses`
+                 ADD COLUMN `last_verified_at` DATETIME DEFAULT NULL
+                 COMMENT 'Timestamp of last successful remote license verification'
+                 AFTER `is_active`"
+            );
+        }
     } catch (\Throwable $e) {
         // DB not yet available (first-time setup) – skip silently
     }
@@ -181,6 +199,36 @@ $router->post('/admin/users/{id}/delete', static function (array $p) {
     Core\Auth::setFlash('success', 'Użytkownik usunięty.');
     header('Location: /admin/users'); exit;
 }, ['auth']);
+
+// ── License verification API ───────────────────────────────────────────────
+// This endpoint allows TachoSystem to act as a remote license authority.
+// Other installations set LICENSE_VERIFY_URL to this URL so that their
+// active licenses are validated against the central authority once a day.
+//
+// POST /api/verify-license
+// Body (JSON): { "license_key": "TACHO-...", "company_id": N }
+// Response:    { "valid": bool, "expires": "YYYY-MM-DD"|null, "modules": [] }
+$router->post('/api/verify-license', static function (array $p) {
+    header('Content-Type: application/json; charset=utf-8');
+    $body       = json_decode((string) file_get_contents('php://input'), true) ?: [];
+    $licenseKey = trim((string) ($body['license_key'] ?? ''));
+    $companyId  = (int) ($body['company_id']  ?? 0);
+
+    if (!$licenseKey || $companyId <= 0) {
+        echo json_encode(['valid' => false, 'message' => 'Missing parameters']);
+        exit;
+    }
+
+    $valid  = Core\License::validate($companyId, $licenseKey);
+    $active = $valid ? Core\License::getActive($companyId) : null;
+
+    echo json_encode([
+        'valid'   => $valid,
+        'expires' => $active ? $active['valid_to'] : null,
+        'modules' => $active ? (json_decode($active['modules'] ?? '[]', true) ?: []) : [],
+    ]);
+    exit;
+});
 
 // ── 404 ────────────────────────────────────────────────────────────────────
 $router->setNotFound(static function () {

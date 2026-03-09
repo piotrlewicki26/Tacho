@@ -163,7 +163,87 @@ class License
         );
     }
 
-    // ── Internals ──────────────────────────────────────────────────────────
+    // ── Remote daily verification ──────────────────────────────────────────
+
+    /**
+     * Returns true when the license has not been verified by the remote
+     * license authority today (last_verified_at is NULL or before today).
+     */
+    public static function needsDailyVerification(array $license): bool
+    {
+        if (empty($license['last_verified_at'])) {
+            return true;
+        }
+        return date('Y-m-d') > date('Y-m-d', strtotime($license['last_verified_at']));
+    }
+
+    /**
+     * Call the remote license-authority endpoint (LICENSE_VERIFY_URL).
+     *
+     * Sends a POST request with JSON body {"license_key":"…","company_id":N}.
+     * Returns true when the remote server confirms the license is valid.
+     * Returns true (fail-open) when the remote URL is not configured or when
+     * the network request fails — prevents service disruption on connectivity
+     * issues while ensuring verification is retried the next day.
+     */
+    public static function verifyRemote(int $companyId, array $license): bool
+    {
+        $url = defined('LICENSE_VERIFY_URL') ? (string) LICENSE_VERIFY_URL : '';
+        if ($url === '') {
+            return true; // remote verification not configured – local check only
+        }
+
+        $payload = (string) json_encode([
+            'license_key' => $license['license_key'],
+            'company_id'  => $companyId,
+        ]);
+
+        $ctx = stream_context_create([
+            'http' => [
+                'method'        => 'POST',
+                'header'        => "Content-Type: application/json\r\nContent-Length: " . strlen($payload),
+                'content'       => $payload,
+                'timeout'       => 5,
+                'ignore_errors' => true,
+            ],
+            'ssl' => [
+                'verify_peer'      => true,
+                'verify_peer_name' => true,
+            ],
+        ]);
+
+        $response = @file_get_contents($url, false, $ctx);
+        if ($response === false) {
+            return true; // network error – fail open, retry tomorrow
+        }
+
+        $data = json_decode($response, true);
+        return is_array($data) && isset($data['valid']) && $data['valid'] === true;
+    }
+
+    /**
+     * Trigger the daily remote check for a company's active license.
+     *
+     * Queries the remote authority once per day and updates last_verified_at.
+     * If the remote server explicitly marks the license as invalid the license
+     * is deactivated; local data is otherwise untouched.
+     * This method is a no-op when no remote URL is configured or when the
+     * license was already verified today.
+     */
+    public static function checkActiveRemotely(int $companyId): void
+    {
+        $lic = self::getActive($companyId);
+        if (!$lic) return;
+        if (!self::needsDailyVerification($lic)) return;
+
+        $valid  = self::verifyRemote($companyId, $lic);
+        $update = ['last_verified_at' => date('Y-m-d H:i:s')];
+        if (!$valid) {
+            $update['is_active'] = 0;
+        }
+        Database::update('licenses', $update, 'id = :id', ['id' => (int) $lic['id']]);
+    }
+
 
     private static function computeHash(
         int $companyId, string $key, array $modules,
