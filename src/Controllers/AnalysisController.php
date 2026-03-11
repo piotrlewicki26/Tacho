@@ -259,6 +259,17 @@ class AnalysisController
 
         if (!$date && $dates) $date = $dates[0];
 
+        // Previous / next navigable dates
+        $dateIdx  = $date ? array_search($date, $dates, true) : false;
+        $prevDate = ($dateIdx !== false && $dateIdx > 0) ? $dates[$dateIdx - 1] : null;
+        $nextDate = ($dateIdx !== false && $dateIdx < count($dates) - 1) ? $dates[$dateIdx + 1] : null;
+
+        // Week start for the current date (for "Back to weekly" link).
+        // Use ISO week Monday: add 1 day then go back to 'last Monday' to handle Sundays correctly.
+        $weekStart = $date
+            ? date('Y-m-d', strtotime('last Monday', strtotime($date . ' +1 day')))
+            : null;
+
         // Day activities
         $dayActivities = array_filter($activities, fn($a) => $a['activity_date'] === $date);
         $dayActivities = array_values($dayActivities);
@@ -272,7 +283,10 @@ class AnalysisController
 
         $pageTitle = 'Analiza dzienna – ' . ($date ?? '');
         $flash     = Auth::getFlash();
-        $content   = $this->render('analysis/daily', compact('file','date','dates','dayActivities','totals','violations','fileId'));
+        $content   = $this->render('analysis/daily', compact(
+            'file','date','dates','dayActivities','totals','violations','fileId',
+            'prevDate','nextDate','weekStart'
+        ));
         require __DIR__ . '/../Views/layouts/main.php';
     }
 
@@ -285,16 +299,16 @@ class AnalysisController
         $actModel   = new Activity();
         $activities = $actModel->forFile($fileId);
 
-        // Group by week
+        // Group by ISO week (Mon–Sun). 'last Monday' with +1 day offset handles Sundays correctly.
         $weeks = [];
         foreach ($activities as $a) {
-            $wStart = date('Y-m-d', strtotime('Monday this week', strtotime($a['activity_date'])));
+            $wStart = date('Y-m-d', strtotime('last Monday', strtotime($a['activity_date'] . ' +1 day')));
             $weeks[$wStart] = true;
         }
         $weekKeys = array_keys($weeks);
         sort($weekKeys);
 
-        $weekStart   = $_GET['week'] ?? ($weekKeys[0] ?? date('Y-m-d', strtotime('Monday this week')));
+        $weekStart   = $_GET['week'] ?? ($weekKeys[0] ?? date('Y-m-d', strtotime('last Monday', strtotime('+1 day'))));
         $weekEnd     = date('Y-m-d', strtotime($weekStart . ' +6 days'));
         $weekDates   = [];
         for ($i = 0; $i < 7; $i++) $weekDates[] = date('Y-m-d', strtotime($weekStart . " +$i days"));
