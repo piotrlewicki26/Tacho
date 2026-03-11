@@ -238,6 +238,7 @@ class AnalysisController
         } catch (\Throwable $e) {
             $fileModel->updateStatus($fileId, 'error', $e->getMessage());
             Auth::setFlash('error', 'Błąd parsowania: ' . $e->getMessage());
+            header('Location: /analysis'); exit;
         }
 
         header("Location: /analysis/$fileId/daily"); exit;

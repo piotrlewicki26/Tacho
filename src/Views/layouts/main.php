@@ -208,7 +208,7 @@ $userInitial = strtoupper(substr($user['name'] ?? 'U', 0, 1));
 <div class="page-wrapper">
 
   <!-- Flash messages -->
-  <?php $flash = \Core\Auth::getFlash(); if ($flash): ?>
+  <?php if (!isset($flash)) $flash = \Core\Auth::getFlash(); if ($flash): ?>
   <div class="flash-wrapper px-4 pt-4">
     <div class="alert alert-<?= $flash['type'] === 'error' ? 'danger' : $flash['type'] ?> alert-dismissible d-flex align-items-center gap-2 mb-0" role="alert">
       <i class="bi bi-<?= $flash['type'] === 'error' ? 'exclamation-triangle-fill' : 'check-circle-fill' ?>"></i>
