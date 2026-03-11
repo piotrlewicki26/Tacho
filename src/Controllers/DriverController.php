@@ -17,8 +17,11 @@ class DriverController
     public function index(array $params): void
     {
         Auth::requireAuth();
-        $companyId = $this->companyId();
-        $drivers   = $this->model->allForCompany($companyId);
+        $cid = Auth::effectiveCompanyId();
+        if (!$cid) {
+            Auth::setFlash('error', 'Konto nie jest przypisane do żadnej firmy. Użyj konta firmowego lub wybierz firmę.');
+        }
+        $drivers   = $cid ? $this->model->allForCompany($cid) : [];
         $flash     = Auth::getFlash();
         $pageTitle = 'Kierowcy';
         $content   = $this->render('drivers/index', compact('drivers'));

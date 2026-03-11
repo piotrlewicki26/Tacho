@@ -16,7 +16,11 @@ class VehicleController
     public function index(array $params): void
     {
         Auth::requireAuth();
-        $vehicles  = $this->model->allForCompany($this->companyId());
+        $cid = Auth::effectiveCompanyId();
+        if (!$cid) {
+            Auth::setFlash('error', 'Konto nie jest przypisane do żadnej firmy. Użyj konta firmowego lub wybierz firmę.');
+        }
+        $vehicles  = $cid ? $this->model->allForCompany($cid) : [];
         $flash     = Auth::getFlash();
         $pageTitle = 'Pojazdy';
         $content   = $this->render('vehicles/index', compact('vehicles'));
