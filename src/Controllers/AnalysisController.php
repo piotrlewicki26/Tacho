@@ -316,11 +316,22 @@ class AnalysisController
             return $d >= $weekStart && $d <= $weekEnd;
         });
 
+        // Per-day activity records for the SVG timeline chart
+        $weekActivitiesByDay = [];
+        foreach ($weekDates as $d) {
+            $weekActivitiesByDay[$d] = [];
+        }
+        foreach ($activities as $a) {
+            if (isset($weekActivitiesByDay[$a['activity_date']])) {
+                $weekActivitiesByDay[$a['activity_date']][] = $a;
+            }
+        }
+
         $pageTitle = 'Analiza tygodniowa';
         $flash     = Auth::getFlash();
         $content   = $this->render('analysis/weekly', compact(
             'file','weekStart','weekEnd','weekDates','weeklyData',
-            'violations','weekViolations','weeks','weekKeys'
+            'weekActivitiesByDay','violations','weekViolations','weeks','weekKeys'
         ));
         require __DIR__ . '/../Views/layouts/main.php';
     }
