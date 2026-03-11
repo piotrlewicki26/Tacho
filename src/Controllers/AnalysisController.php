@@ -12,6 +12,7 @@ use Parsers\DDDParser;
 
 class AnalysisController
 {
+    use \Core\StringHelper;
     public function index(array $params): void
     {
         Auth::requireAuth();
@@ -331,18 +332,6 @@ class AnalysisController
         $f = (new TachoFile())->find($id, Auth::effectiveCompanyId() ?? 0);
         if (!$f) { http_response_code(404); exit('Plik nie znaleziony.'); }
         return $f;
-    }
-
-    /**
-     * Strip non-printable and binary bytes from a string extracted from a DDD file,
-     * then trim surrounding whitespace.
-     *
-     * @param  string $s Raw string from binary DDD data
-     * @return string    Cleaned, trimmed string (may be empty)
-     */
-    private function cleanString(string $s): string
-    {
-        return trim(preg_replace('/[^\x20-\x7E\xC0-\xFF]/u', '', $s));
     }
 
     private function render(string $view, array $data = []): string

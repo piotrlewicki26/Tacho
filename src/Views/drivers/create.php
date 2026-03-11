@@ -4,6 +4,22 @@
   <a href="/drivers" class="btn btn-outline-secondary"><i class="bi bi-arrow-left me-1"></i>Wróć</a>
 </div>
 
+<?php if (!$driver): ?>
+<div class="card border-0 mb-3" style="background:#12141e;max-width:700px">
+  <div class="card-body p-3">
+    <p class="mb-2 fw-semibold"><i class="bi bi-credit-card text-primary me-1"></i>Wczytaj dane z karty kierowcy (plik DDD)</p>
+    <div class="d-flex gap-2 align-items-start flex-wrap">
+      <input type="file" id="dddFileInput" accept=".ddd,.c1b,.dt,.dtco,.v1b,.m1,.vu"
+             class="form-control" style="max-width:360px">
+      <button type="button" class="btn btn-outline-primary" onclick="parseDddDriver()">
+        <i class="bi bi-upload me-1"></i>Wczytaj
+      </button>
+    </div>
+    <div id="dddStatus" class="form-text mt-1"></div>
+  </div>
+</div>
+<?php endif; ?>
+
 <div class="card border-0" style="background:#1a1d27;max-width:700px">
   <div class="card-body p-4">
     <form method="POST" action="<?= $driver ? '/drivers/' . $driver['id'] : '/drivers' ?>" novalidate>
@@ -74,3 +90,46 @@
     </form>
   </div>
 </div>
+
+<?php if (!$driver): ?>
+<script>
+function parseDddDriver() {
+  const input  = document.getElementById('dddFileInput');
+  const status = document.getElementById('dddStatus');
+  if (!input.files.length) {
+    status.textContent = 'Wybierz plik DDD.';
+    status.className   = 'form-text text-warning mt-1';
+    return;
+  }
+  const btn = document.querySelector('[onclick="parseDddDriver()"]');
+  btn.disabled = true;
+  status.textContent = 'Analizuję plik…';
+  status.className   = 'form-text text-muted mt-1';
+
+  const fd = new FormData();
+  fd.append('ddd_file', input.files[0]);
+
+  fetch('/drivers/parse-ddd', { method: 'POST', body: fd })
+    .then(r => r.json())
+    .then(data => {
+      if (data.error) {
+        status.textContent = data.error;
+        status.className   = 'form-text text-danger mt-1';
+        return;
+      }
+      const set = (name, val) => { if (val) { const el = document.querySelector(`[name="${name}"]`); if (el) el.value = val; } };
+      set('first_name',  data.first_name);
+      set('last_name',   data.last_name);
+      set('card_number', data.card_number);
+      set('nationality', data.nationality);
+      status.textContent = 'Dane wczytane pomyślnie. Sprawdź pola i zapisz.';
+      status.className   = 'form-text text-success mt-1';
+    })
+    .catch(() => {
+      status.textContent = 'Błąd komunikacji z serwerem.';
+      status.className   = 'form-text text-danger mt-1';
+    })
+    .finally(() => { btn.disabled = false; });
+}
+</script>
+<?php endif; ?>

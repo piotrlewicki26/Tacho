@@ -4,9 +4,11 @@ namespace Controllers;
 
 use Core\Auth;
 use Models\Vehicle;
+use Parsers\DDDParser;
 
 class VehicleController
 {
+    use \Core\StringHelper;
     private Vehicle $model;
 
     public function __construct() { $this->model = new Vehicle(); }
@@ -71,6 +73,35 @@ class VehicleController
         Auth::log('vehicle_deleted', "Pojazd ID $id");
         Auth::setFlash('success', 'Pojazd usunięty.');
         header('Location: /vehicles'); exit;
+    }
+
+    public function parseDdd(array $params): void
+    {
+        Auth::requireRole('admin', 'superadmin');
+        header('Content-Type: application/json; charset=utf-8');
+
+        if (empty($_FILES['ddd_file']['tmp_name']) || $_FILES['ddd_file']['error'] !== UPLOAD_ERR_OK) {
+            echo json_encode(['error' => 'Nie przesłano pliku.']);
+            exit;
+        }
+
+        $binary = @file_get_contents($_FILES['ddd_file']['tmp_name']);
+        if ($binary === false || strlen($binary) < 4) {
+            echo json_encode(['error' => 'Nie można odczytać pliku.']);
+            exit;
+        }
+
+        try {
+            $result = (new DDDParser($binary))->parse();
+            $veh    = $result['vehicle'] ?? [];
+            echo json_encode([
+                'registration' => $this->cleanString($veh['registration'] ?? ''),
+                'vin'          => $this->cleanString($veh['vin']          ?? ''),
+            ]);
+        } catch (\Throwable $e) {
+            echo json_encode(['error' => 'Błąd parsowania: ' . $e->getMessage()]);
+        }
+        exit;
     }
 
     // ── Helpers ────────────────────────────────────────────────────────────

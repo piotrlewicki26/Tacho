@@ -126,21 +126,23 @@ $router->get('/license-required', static function (array $p) {
 $router->get('/', 'DashboardController@index', ['license']);
 
 // Drivers
-$router->get('/drivers',              'DriverController@index',  ['license']);
-$router->get('/drivers/create',       'DriverController@create', ['license']);
-$router->post('/drivers',             'DriverController@store',  ['license']);
-$router->get('/drivers/{id}',         'DriverController@show',   ['license']);
-$router->get('/drivers/{id}/edit',    'DriverController@edit',   ['license']);
-$router->post('/drivers/{id}',        'DriverController@update', ['license']);
-$router->post('/drivers/{id}/delete', 'DriverController@delete', ['license']);
+$router->get('/drivers',                  'DriverController@index',    ['license']);
+$router->get('/drivers/create',           'DriverController@create',   ['license']);
+$router->post('/drivers/parse-ddd',       'DriverController@parseDdd', ['license']);
+$router->post('/drivers',                 'DriverController@store',    ['license']);
+$router->get('/drivers/{id}',             'DriverController@show',     ['license']);
+$router->get('/drivers/{id}/edit',        'DriverController@edit',     ['license']);
+$router->post('/drivers/{id}',            'DriverController@update',   ['license']);
+$router->post('/drivers/{id}/delete',     'DriverController@delete',   ['license']);
 
 // Vehicles
-$router->get('/vehicles',               'VehicleController@index',  ['license']);
-$router->get('/vehicles/create',        'VehicleController@create', ['license']);
-$router->post('/vehicles',              'VehicleController@store',  ['license']);
-$router->get('/vehicles/{id}/edit',     'VehicleController@edit',   ['license']);
-$router->post('/vehicles/{id}',         'VehicleController@update', ['license']);
-$router->post('/vehicles/{id}/delete',  'VehicleController@delete', ['license']);
+$router->get('/vehicles',                   'VehicleController@index',    ['license']);
+$router->get('/vehicles/create',            'VehicleController@create',   ['license']);
+$router->post('/vehicles/parse-ddd',        'VehicleController@parseDdd', ['license']);
+$router->post('/vehicles',                  'VehicleController@store',    ['license']);
+$router->get('/vehicles/{id}/edit',         'VehicleController@edit',     ['license']);
+$router->post('/vehicles/{id}',             'VehicleController@update',   ['license']);
+$router->post('/vehicles/{id}/delete',      'VehicleController@delete',   ['license']);
 
 // Analysis
 $router->get('/analysis',             'AnalysisController@index',  ['license']);

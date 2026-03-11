@@ -5,9 +5,11 @@ namespace Controllers;
 use Core\Auth;
 use Core\License;
 use Models\Driver;
+use Parsers\DDDParser;
 
 class DriverController
 {
+    use \Core\StringHelper;
     private Driver $model;
 
     public function __construct() { $this->model = new Driver(); }
@@ -104,6 +106,37 @@ class DriverController
         Auth::log('driver_deleted', "Kierowca ID $id");
         Auth::setFlash('success', 'Kierowca usunięty.');
         header('Location: /drivers'); exit;
+    }
+
+    public function parseDdd(array $params): void
+    {
+        Auth::requireRole('admin', 'superadmin');
+        header('Content-Type: application/json; charset=utf-8');
+
+        if (empty($_FILES['ddd_file']['tmp_name']) || $_FILES['ddd_file']['error'] !== UPLOAD_ERR_OK) {
+            echo json_encode(['error' => 'Nie przesłano pliku.']);
+            exit;
+        }
+
+        $binary = @file_get_contents($_FILES['ddd_file']['tmp_name']);
+        if ($binary === false || strlen($binary) < 4) {
+            echo json_encode(['error' => 'Nie można odczytać pliku.']);
+            exit;
+        }
+
+        try {
+            $result = (new DDDParser($binary))->parse();
+            $drv    = $result['driver'] ?? [];
+            echo json_encode([
+                'first_name'  => $this->cleanString($drv['first_name'] ?? ''),
+                'last_name'   => $this->cleanString($drv['surname']    ?? ''),
+                'card_number' => $this->cleanString($drv['card_number'] ?? ''),
+                'nationality' => $this->cleanString($drv['nationality'] ?? ''),
+            ]);
+        } catch (\Throwable $e) {
+            echo json_encode(['error' => 'Błąd parsowania: ' . $e->getMessage()]);
+        }
+        exit;
     }
 
     // ── Helpers ────────────────────────────────────────────────────────────
