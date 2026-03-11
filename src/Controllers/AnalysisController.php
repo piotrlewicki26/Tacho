@@ -350,6 +350,18 @@ class AnalysisController
         require __DIR__ . '/../Views/layouts/main.php';
     }
 
+    public function analyzer(array $params): void
+    {
+        Auth::requireAuth();
+        $cid = Auth::effectiveCompanyId();
+        if (!Auth::isSuperAdmin() && !License::isModuleAllowed($cid ?? 0, 'analysis')) {
+            Auth::setFlash('error', 'Brak licencji na moduł analizy.');
+            header('Location: /'); exit;
+        }
+        // Standalone page: renders its own full HTML document, no main layout needed.
+        require __DIR__ . '/../Views/analysis/analyzer.php';
+    }
+
     // ── Helpers ────────────────────────────────────────────────────────────
 
     private function findFileOr404(int $id): array

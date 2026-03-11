@@ -145,10 +145,11 @@ $router->post('/vehicles/{id}',             'VehicleController@update',   ['lice
 $router->post('/vehicles/{id}/delete',      'VehicleController@delete',   ['license']);
 
 // Analysis
-$router->get('/analysis',             'AnalysisController@index',  ['license']);
-$router->post('/analysis/upload',     'AnalysisController@upload', ['license']);
-$router->get('/analysis/{id}/daily',  'AnalysisController@daily',  ['license']);
-$router->get('/analysis/{id}/weekly', 'AnalysisController@weekly', ['license']);
+$router->get('/analysis',             'AnalysisController@index',    ['license']);
+$router->get('/analysis/analyzer',    'AnalysisController@analyzer', ['license']);
+$router->post('/analysis/upload',     'AnalysisController@upload',   ['license']);
+$router->get('/analysis/{id}/daily',  'AnalysisController@daily',    ['license']);
+$router->get('/analysis/{id}/weekly', 'AnalysisController@weekly',   ['license']);
 
 // Reports
 $router->get('/reports/vacation',   'ReportController@vacation',   ['license']);
