@@ -653,10 +653,10 @@ function App(){
 
   useEffect(()=>{
     if(!rootRef.current) return;
-    const obs=new ResizeObserver(es=>{if(es[0])setCw(es[0].contentRect.width);});
+    const obs=new ResizeObserver(es=>{if(es[0])setCw(Math.floor(es[0].contentRect.width));});
     obs.observe(rootRef.current);
     return()=>obs.disconnect();
-  },[]);
+  },[loading]);
 
   const chartWidth=Math.max(400,cw-LW-2);
   const dur=ve-vs;
@@ -746,22 +746,26 @@ function App(){
 
   if(loading){
     return (
-      <div style={{padding:"40px 20px",textAlign:"center",fontFamily:"Inter",color:"#5A6070"}}>
-        <div style={{fontSize:14,color:"#1E88E5",fontWeight:600}}>Wczytywanie pliku DDD...</div>
+      <div ref={rootRef} style={{width:"100%",overflow:"hidden",fontFamily:"Inter"}}>
+        <div style={{padding:"40px 20px",textAlign:"center",color:"#5A6070"}}>
+          <div style={{fontSize:14,color:"#1E88E5",fontWeight:600}}>Wczytywanie pliku DDD...</div>
+        </div>
       </div>
     );
   }
 
   if(err&&!data){
     return (
-      <div style={{padding:"20px",fontFamily:"Inter"}}>
-        <div style={{padding:"12px 16px",background:"#FFEBEE",border:"1px solid #FFCDD2",borderRadius:4,color:"#C62828",fontSize:13}}>{err}</div>
+      <div ref={rootRef} style={{width:"100%",overflow:"hidden",fontFamily:"Inter"}}>
+        <div style={{padding:"20px"}}>
+          <div style={{padding:"12px 16px",background:"#FFEBEE",border:"1px solid #FFCDD2",borderRadius:4,color:"#C62828",fontSize:13}}>{err}</div>
+        </div>
       </div>
     );
   }
 
   return (
-    <div ref={rootRef} style={{background:"transparent",fontFamily:"Inter"}}>
+    <div ref={rootRef} style={{background:"transparent",fontFamily:"Inter",width:"100%",overflow:"hidden"}}>
 
       <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:12,flexWrap:"wrap"}}>
         <div style={{display:"flex",alignItems:"center",gap:8}}>
