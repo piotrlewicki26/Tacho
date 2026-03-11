@@ -689,7 +689,7 @@ function tzZoom(newDur,anchorMin){
   render();
 }
 function tzZoomIn(){
-  const c=(vs+ve)/2,d=(ve-vs)/4;
+  const c=(vs+ve)/2;
   tzZoom((ve-vs)/2,c);
 }
 function tzZoomOut(){
