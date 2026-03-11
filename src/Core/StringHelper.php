@@ -16,6 +16,8 @@ trait StringHelper
      */
     private function cleanString(string $s): string
     {
-        return trim(preg_replace('/[^\x20-\x7E\xC0-\xFF]/u', '', $s));
+        // No /u flag: DDD files use Latin-1/binary encoding, not UTF-8.
+        // Using /u would cause preg_replace() to return null on non-UTF-8 bytes.
+        return trim(preg_replace('/[^\x20-\x7E\xC0-\xFF]/', '', $s));
     }
 }
