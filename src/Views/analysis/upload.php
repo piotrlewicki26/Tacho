@@ -88,15 +88,19 @@
                 <?= htmlspecialchars($f['parse_status']) ?>
               </span>
             </td>
-            <td class="text-end">
+            <td class="text-end" style="white-space:nowrap">
               <?php if ($f['parse_status'] === 'success'): ?>
-              <a href="/analysis/<?= $f['id'] ?>/daily" class="btn btn-sm btn-outline-secondary me-1" title="Dzienny">
-                <i class="bi bi-calendar-day"></i>
-              </a>
-              <a href="/analysis/<?= $f['id'] ?>/weekly" class="btn btn-sm btn-outline-secondary" title="Tygodniowy">
-                <i class="bi bi-calendar-week"></i>
+              <a href="/analysis/<?= $f['id'] ?>" class="btn btn-sm btn-outline-secondary me-1" title="Otwórz analyzer">
+                <i class="bi bi-graph-up"></i>
               </a>
               <?php endif; ?>
+              <form method="POST" action="/analysis/<?= $f['id'] ?>/delete" style="display:inline"
+                    onsubmit="return confirm('Czy na pewno usunąć plik <?= htmlspecialchars(json_encode($f['original_name'], JSON_HEX_APOS | JSON_HEX_QUOT), ENT_QUOTES) ?>?')">
+                <input type="hidden" name="_token" value="<?= \Core\Auth::csrfToken() ?>">
+                <button type="submit" class="btn btn-sm btn-outline-danger" title="Usuń plik">
+                  <i class="bi bi-trash"></i>
+                </button>
+              </form>
             </td>
           </tr>
           <?php endforeach; ?>

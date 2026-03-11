@@ -44,4 +44,30 @@ class TachoFile
             'parsed_at'    => date('Y-m-d H:i:s'),
         ], 'id = :id', ['id' => $id]);
     }
+
+    /**
+     * Delete a file record, its activities, violations, and the physical file on disk.
+     * Only deletes if the file belongs to the given company (ownership check).
+     */
+    public function delete(int $id, int $companyId): bool
+    {
+        $row = Database::fetchOne(
+            'SELECT stored_name FROM tacho_files WHERE id = :id AND company_id = :cid LIMIT 1',
+            ['id' => $id, 'cid' => $companyId]
+        );
+        if (!$row) return false;
+
+        // Remove physical file
+        $path = UPLOAD_PATH . $row['stored_name'];
+        if (is_file($path) && !unlink($path)) {
+            error_log('TachoFile::delete – could not delete file: ' . $path);
+        }
+
+        // Remove DB records (activities cascade via FK or explicit delete)
+        Database::delete('activities',  'tacho_file_id = :fid', ['fid' => $id]);
+        Database::delete('violations',  'tacho_file_id = :fid', ['fid' => $id]);
+        Database::delete('tacho_files', 'id = :id',             ['id'  => $id]);
+
+        return true;
+    }
 }

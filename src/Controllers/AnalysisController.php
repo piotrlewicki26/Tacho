@@ -241,115 +241,64 @@ class AnalysisController
             header('Location: /analysis'); exit;
         }
 
-        header("Location: /analysis/$fileId/daily"); exit;
+        header("Location: /analysis/$fileId"); exit;
     }
 
-    public function daily(array $params): void
+    public function show(array $params): void
     {
         Auth::requireAuth();
-        $fileId   = (int)$params['id'];
-        $file     = $this->findFileOr404($fileId);
-        $date     = $_GET['date'] ?? null;
+        $fileId = (int)$params['id'];
+        $file   = $this->findFileOr404($fileId);
 
-        $actModel  = new Activity();
-        $activities = $actModel->forFile($fileId);
-
-        // Available dates
-        $dates = array_unique(array_map(fn($a) => $a['activity_date'], $activities));
-        sort($dates);
-
-        if (!$date && $dates) $date = $dates[0];
-
-        // Previous / next navigable dates
-        $dateIdx  = $date ? array_search($date, $dates, true) : false;
-        $prevDate = ($dateIdx !== false && $dateIdx > 0) ? $dates[$dateIdx - 1] : null;
-        $nextDate = ($dateIdx !== false && $dateIdx < count($dates) - 1) ? $dates[$dateIdx + 1] : null;
-
-        // Week start for the current date (for "Back to weekly" link).
-        // Use ISO week Monday: add 1 day then go back to 'last Monday' to handle Sundays correctly.
-        $weekStart = $date
-            ? date('Y-m-d', strtotime('last Monday', strtotime($date . ' +1 day')))
-            : null;
-
-        // Day activities
-        $dayActivities = array_filter($activities, fn($a) => $a['activity_date'] === $date);
-        $dayActivities = array_values($dayActivities);
-
-        $totals    = ['driving' => 0, 'work' => 0, 'availability' => 0, 'rest' => 0, 'break' => 0];
-        foreach ($dayActivities as $a) {
-            $totals[$a['activity_type']] += (int)$a['duration_minutes'];
-        }
-
-        $violations = $actModel->violationsForFile($fileId);
-
-        $pageTitle = 'Analiza dzienna – ' . ($date ?? '');
+        $pageTitle = 'Analyzer – ' . htmlspecialchars($file['original_name']);
         $flash     = Auth::getFlash();
-        $content   = $this->render('analysis/daily', compact(
-            'file','date','dates','dayActivities','totals','violations','fileId',
-            'prevDate','nextDate','weekStart'
-        ));
+        $content   = $this->render('analysis/analyzer', compact('file', 'fileId'));
         require __DIR__ . '/../Views/layouts/main.php';
     }
 
-    public function weekly(array $params): void
+    public function serveFile(array $params): void
     {
         Auth::requireAuth();
-        $fileId    = (int)$params['id'];
-        $file      = $this->findFileOr404($fileId);
+        $fileId = (int)$params['id'];
+        $file   = $this->findFileOr404($fileId);
 
-        $actModel   = new Activity();
-        $activities = $actModel->forFile($fileId);
-
-        // Group by ISO week (Mon–Sun). 'last Monday' with +1 day offset handles Sundays correctly.
-        $weeks = [];
-        foreach ($activities as $a) {
-            $wStart = date('Y-m-d', strtotime('last Monday', strtotime($a['activity_date'] . ' +1 day')));
-            $weeks[$wStart] = true;
-        }
-        $weekKeys = array_keys($weeks);
-        sort($weekKeys);
-
-        $weekStart   = $_GET['week'] ?? ($weekKeys[0] ?? date('Y-m-d', strtotime('last Monday', strtotime('+1 day'))));
-        $weekEnd     = date('Y-m-d', strtotime($weekStart . ' +6 days'));
-        $weekDates   = [];
-        for ($i = 0; $i < 7; $i++) $weekDates[] = date('Y-m-d', strtotime($weekStart . " +$i days"));
-
-        // Totals per day
-        $weeklyData = [];
-        foreach ($weekDates as $d) {
-            $weeklyData[$d] = ['driving' => 0, 'work' => 0, 'availability' => 0, 'rest' => 0, 'break' => 0];
-        }
-        foreach ($activities as $a) {
-            if (isset($weeklyData[$a['activity_date']])) {
-                $weeklyData[$a['activity_date']][$a['activity_type']] += (int)$a['duration_minutes'];
-            }
+        $path = UPLOAD_PATH . $file['stored_name'];
+        if (!is_file($path)) {
+            http_response_code(404);
+            echo 'Plik nie istnieje na serwerze.';
+            exit;
         }
 
-        $violations   = $actModel->violationsForFile($fileId);
-        $weekViolations = array_filter($violations, function($v) use ($weekStart, $weekEnd) {
-            $d = $v['created_at'] ?? $weekStart;
-            return $d >= $weekStart && $d <= $weekEnd;
-        });
-
-        // Per-day activity records for the SVG timeline chart
-        $weekActivitiesByDay = [];
-        foreach ($weekDates as $d) {
-            $weekActivitiesByDay[$d] = [];
-        }
-        foreach ($activities as $a) {
-            if (isset($weekActivitiesByDay[$a['activity_date']])) {
-                $weekActivitiesByDay[$a['activity_date']][] = $a;
-            }
-        }
-
-        $pageTitle = 'Analiza tygodniowa';
-        $flash     = Auth::getFlash();
-        $content   = $this->render('analysis/weekly', compact(
-            'file','fileId','weekStart','weekEnd','weekDates','weeklyData',
-            'weekActivitiesByDay','activities','violations','weekViolations','weeks','weekKeys'
-        ));
-        require __DIR__ . '/../Views/layouts/main.php';
+        header('Content-Type: application/octet-stream');
+        header('Content-Length: ' . filesize($path));
+        header('Cache-Control: private, no-cache');
+        readfile($path);
+        exit;
     }
+
+    public function delete(array $params): void
+    {
+        Auth::requireRole('admin', 'superadmin');
+        if (!Auth::validateCsrf()) { header('Location: /analysis'); exit; }
+
+        $fileId = (int)$params['id'];
+        $cid    = Auth::effectiveCompanyId();
+        if (!$cid) {
+            Auth::setFlash('error', 'Brak kontekstu firmy.');
+            header('Location: /analysis'); exit;
+        }
+
+        $deleted = (new TachoFile())->delete($fileId, $cid);
+        if ($deleted) {
+            Auth::log('file_deleted', "Plik DDD ID $fileId usunięty.");
+            Auth::setFlash('success', 'Plik został usunięty.');
+        } else {
+            Auth::setFlash('error', 'Nie znaleziono pliku lub brak uprawnień.');
+        }
+
+        header('Location: /analysis'); exit;
+    }
+
 
     // ── Helpers ────────────────────────────────────────────────────────────
 
