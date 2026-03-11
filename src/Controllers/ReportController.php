@@ -51,49 +51,17 @@ class ReportController
     public function delegation(array $params): void
     {
         Auth::requireAuth();
-        $cid = Auth::companyId();
-        if (!License::isModuleAllowed($cid ?? 0, 'delegation') && !License::isModuleAllowed($cid ?? 0, 'reports')) {
+        $cid = Auth::effectiveCompanyId() ?? Auth::companyId(); // effectiveCompanyId() honours superadmin's viewed-company selection; falls back to logged-in user's company
+        if (!Auth::isSuperAdmin() && !License::isModuleAllowed($cid ?? 0, 'delegation') && !License::isModuleAllowed($cid ?? 0, 'reports')) {
             Auth::setFlash('error', 'Brak licencji na moduł delegacji.');
             header('Location: /'); exit;
         }
 
-        $drivers  = (new Driver())->allForCompany($cid);
-        $driverId = (int)($_GET['driver_id'] ?? 0);
-        $dateFrom = $_GET['date_from'] ?? date('Y-m-01');
-        $dateTo   = $_GET['date_to']   ?? date('Y-m-t');
-        $driver   = $driverId ? (new Driver())->find($driverId, $cid) : null;
-
-        $byCountry  = [];
-        $activities = [];
-
-        if ($driver && $dateFrom && $dateTo) {
-            $activities = (new Activity())->forRange($driverId, $dateFrom, $dateTo);
-
-            foreach ($activities as $a) {
-                $cc = $a['country_code'] ?? 'PL';
-                if (!isset($byCountry[$cc])) {
-                    $byCountry[$cc] = ['driving' => 0, 'work' => 0, 'rest' => 0, 'availability' => 0, 'break' => 0, 'days' => []];
-                }
-                $byCountry[$cc][$a['activity_type']] += (int)$a['duration_minutes'];
-                $byCountry[$cc]['days'][$a['activity_date']] = true;
-            }
-            foreach ($byCountry as &$c) {
-                $c['day_count'] = count($c['days']);
-                unset($c['days']);
-            }
-        }
-
-        $company   = $cid ? Database::fetchOne('SELECT * FROM companies WHERE id=:id', ['id' => $cid]) : null;
-        $pageTitle = 'Delegacja';
-        $isPrint   = !empty($_GET['print']);
+        $drivers   = $cid ? (new Driver())->allForCompany($cid) : [];
+        $pageTitle = 'Delegacja – Pakiet Mobilności UE';
         $flash     = Auth::getFlash();
-
-        if ($isPrint) {
-            require __DIR__ . '/../Views/reports/delegation.php';
-        } else {
-            $content = $this->render('reports/delegation', compact('drivers','driver','dateFrom','dateTo','byCountry','company'));
-            require __DIR__ . '/../Views/layouts/main.php';
-        }
+        $content   = $this->render('reports/delegation', compact('drivers'));
+        require __DIR__ . '/../Views/layouts/main.php';
     }
 
     private function render(string $view, array $data = []): string

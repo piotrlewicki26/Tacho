@@ -93,6 +93,9 @@
               <a href="/analysis/<?= $f['id'] ?>" class="btn btn-sm btn-outline-secondary me-1" title="Otwórz analyzer">
                 <i class="bi bi-graph-up"></i>
               </a>
+              <a href="/reports/delegation?file_id=<?= $f['id'] ?>" class="btn btn-sm btn-outline-primary me-1" title="Generuj delegację">
+                <i class="bi bi-file-earmark-text"></i>
+              </a>
               <?php endif; ?>
               <form method="POST" action="/analysis/<?= $f['id'] ?>/delete" style="display:inline"
                     onsubmit="return confirm('Czy na pewno usunąć plik <?= htmlspecialchars(json_encode($f['original_name'], JSON_HEX_APOS | JSON_HEX_QUOT), ENT_QUOTES) ?>?')">
