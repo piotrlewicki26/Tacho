@@ -146,7 +146,6 @@ $router->post('/vehicles/{id}/delete',      'VehicleController@delete',   ['lice
 
 // Analysis
 $router->get('/analysis',             'AnalysisController@index',    ['license']);
-$router->get('/analysis/analyzer',    'AnalysisController@analyzer', ['license']);
 $router->post('/analysis/upload',     'AnalysisController@upload',   ['license']);
 $router->get('/analysis/{id}/daily',  'AnalysisController@daily',    ['license']);
 $router->get('/analysis/{id}/weekly', 'AnalysisController@weekly',   ['license']);

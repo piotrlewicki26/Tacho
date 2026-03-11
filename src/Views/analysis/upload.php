@@ -5,14 +5,8 @@
  * @var array $vehicles
  */
 ?>
-<div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+<div class="d-flex justify-content-between align-items-center mb-4">
   <h4 class="fw-bold mb-0">Analiza plików DDD</h4>
-  <a href="/analysis/analyzer"
-     class="btn btn-primary d-flex align-items-center gap-2"
-     style="background:#1E88E5;border-color:#1E88E5">
-    <i class="bi bi-graph-up-arrow"></i>
-    <span>Otwórz Tacho Analyzer <span class="badge bg-white text-primary ms-1" style="font-size:.7rem">nowy</span></span>
-  </a>
 </div>
 
 <!-- Upload form -->

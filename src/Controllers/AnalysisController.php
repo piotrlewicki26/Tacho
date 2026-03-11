@@ -344,22 +344,10 @@ class AnalysisController
         $pageTitle = 'Analiza tygodniowa';
         $flash     = Auth::getFlash();
         $content   = $this->render('analysis/weekly', compact(
-            'file','weekStart','weekEnd','weekDates','weeklyData',
-            'weekActivitiesByDay','violations','weekViolations','weeks','weekKeys'
+            'file','fileId','weekStart','weekEnd','weekDates','weeklyData',
+            'weekActivitiesByDay','activities','violations','weekViolations','weeks','weekKeys'
         ));
         require __DIR__ . '/../Views/layouts/main.php';
-    }
-
-    public function analyzer(array $params): void
-    {
-        Auth::requireAuth();
-        $cid = Auth::effectiveCompanyId();
-        if (!Auth::isSuperAdmin() && !License::isModuleAllowed($cid ?? 0, 'analysis')) {
-            Auth::setFlash('error', 'Brak licencji na moduł analizy.');
-            header('Location: /'); exit;
-        }
-        // Standalone page: renders its own full HTML document, no main layout needed.
-        require __DIR__ . '/../Views/analysis/analyzer.php';
     }
 
     // ── Helpers ────────────────────────────────────────────────────────────
