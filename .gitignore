@@ -1,0 +1,29 @@
+# TachoSystem
+.env
+src/config/local.php
+.installed
+
+# Uploads
+uploads/*
+!uploads/.gitkeep
+
+# PHP deps
+vendor/
+composer.lock
+
+# IDE
+.idea/
+.vscode/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Temp
+*.tmp
+*.cache
+/tmp/
