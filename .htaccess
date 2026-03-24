@@ -1,0 +1,13 @@
+Options -MultiViews -Indexes
+RewriteEngine On
+
+# Allow access to setup.php before installation
+RewriteRule ^setup\.php$ - [L]
+
+# Serve static files directly
+RewriteCond %{REQUEST_FILENAME} -f [OR]
+RewriteCond %{REQUEST_FILENAME} -d
+RewriteRule ^ - [L]
+
+# Route all other requests to index.php
+RewriteRule ^ index.php [L]
